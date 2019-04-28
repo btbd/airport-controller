@@ -183,7 +183,9 @@ func (customer *Customer) Satisfy(forced bool) {
 	var customers []*Customer
 	if c := customer.Retailer.Customers; len(c) > 1 {
 		customers = c[1:]
-		customers[0].Order()
+		if customers[0].State == CUSTOMER_INLINE {
+			customers[0].Order()
+		}
 	}
 
 	customer.Retailer.Customers = customers

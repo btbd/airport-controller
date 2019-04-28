@@ -182,6 +182,10 @@ function httpGet(url, state) {
 	x.open("GET", url, true);
 	x.send(null);
 }
+
+window.addEventListener("touchstart", function(e) {
+    e.target.onmousedown();
+});
 })();
         </script>
     </body>
