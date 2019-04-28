@@ -596,21 +596,19 @@ func UpdateJobs() {
 		for _, r := range airport.Retailers {
 			supplier := airport.Suppliers[i%l]
 
-			if func() bool {
+			func() {
 				for _, j := range supplier.Jobs {
 					if j.Retailer == r.Name {
 						j.Sizes = append(j.Sizes, s)
-						return false
+						return
 					}
 				}
 
-				return true
-			}() {
 				supplier.Jobs = append(supplier.Jobs, &SupplierJob{
 					Retailer: r.Name,
 					Sizes:    []string{s},
 				})
-			}
+			}()
 
 			i++
 		}
