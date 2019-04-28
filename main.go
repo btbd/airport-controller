@@ -1014,6 +1014,10 @@ func main() {
 	flag.StringVar(&addr, "u", "", "AMQP server")
 	flag.Parse()
 
+	if addr == "" {
+		log.Fatal("Missing AMQP URL, use the '-u' flat to specify\n")
+	}
+
 	go Listen(addr)
 
 	http.HandleFunc("/", HandleFileRequest)
