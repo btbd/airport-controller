@@ -414,7 +414,6 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 
 	defer c.Close()
 
-	id := ""
 	client := make(chan string)
 	customer := &Customer{}
 
@@ -449,7 +448,6 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 						for _, r := range airport.Retailers {
 							for _, c := range r.Customers {
 								if c.Id == i {
-									id = i
 									customer = c
 									customer.Client = client
 									switch customer.State {
@@ -464,7 +462,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 						}
 						airport.Mutex.Unlock()
 
-						if id == "" {
+						if customer.Id == "" {
 							c.WriteMessage(websocket.TextMessage, []byte("s"))
 						}
 					}
@@ -474,17 +472,16 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 					i, err := strconv.Atoi(msg[1:])
 					airport.Mutex.Lock()
 					if err == nil && i >= 0 && i < len(airport.Retailers) {
-						id = uuid.Must(uuid.NewV4()).String()
 						retailer := airport.Retailers[i]
 
 						*customer = Customer{
 							Retailer: retailer,
 							State:    CUSTOMER_WALKING,
-							Id:       id,
+							Id:       uuid.Must(uuid.NewV4()).String(),
 							Client:   client,
 						}
 
-						customer.Send("i" + id)
+						customer.Send("i" + customer.Id)
 						retailer.Customers = append(retailer.Customers, customer)
 
 						go func() {
@@ -518,12 +515,12 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 									"ce-specversion": "0.3",
 									"ce-type":        "Order",
 									"ce-source":      "Passenger",
-									"ce-subject":     "Customer." + id,
+									"ce-subject":     "Customer." + customer.Id,
 									"ce-id":          uuid.Must(uuid.NewV4()).String(),
 									"ce-time":        time.Now().Format(time.RFC3339),
 								},
 								ContentType: "application/json",
-								Body:        []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + id + `","offer":"` + Sizes[i] + `"}`),
+								Body:        []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
 							})
 						}
 						airport.Mutex.Unlock()
@@ -903,7 +900,9 @@ func Listen(addr string) {
 							Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(r.GetPosition()) + `,"c":0}`)
 						case "OrderDelivered":
 							if len(r.Customers) > 0 {
-								r.Customers[0].Satisfy(false)
+								if c := r.Customers[0]; c.State == CUSTOMER_ORDERED {
+									c.Satisfy(false)
+								}
 							}
 						}
 					}
@@ -1013,7 +1012,7 @@ func main() {
 	flag.Parse()
 
 	if addr == "" {
-		log.Fatal("Missing AMQP URL, use the '-u' flat to specify\n")
+		log.Fatalln("Missing AMQP URL, use the '-u' flat to specify")
 	}
 
 	go Listen(addr)
