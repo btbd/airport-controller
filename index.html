@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: Arial;
+    font-size: 2rem;
+    background-color: white;
+}
+
+#options {
+    table-layout: fixed;
+    border-collapse: collapse;
+    width: 100%;
+    height: 100%;
+}
+
+#options tr {
+    text-align: center;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+#options button {
+    -webkit-appearance: none;
+    background-color: lightgray;
+    font-size: 3rem;
+    box-shadow: 4px 4px;
+    width: 90%;
+}
+
+#options button:focus {
+    outline: 0;
+}
+        </style>
+    </head>
+
+    <body>
+        <table id="options"></table>
+        <script>
+(function() {
+var ws       = null;
+var id       = "";
+var options  = document.getElementById("options");
+
+(function connect() {
+	ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + window.location.pathname + "ws_customer")
+
+    if (id) {
+        ws.onopen = function() {
+            ws.send("i" + id);
+        };
+    }
+
+    ws.onmessage = function(e) {
+        if (e.data && e.data.length > 0) {
+            switch (e.data[0]) {
+                case "i":
+                    id = e.data.slice(1);
+                    break;
+                case "o":
+                    Order();
+                    break;
+                case "w":
+                    WaitForProcess();
+                    break;
+                case "f":
+                    Force();
+                    break;
+                case "s":
+                    Satisfied();
+                    break;
+            }
+        }
+    };
+
+    ws.onclose = function() {
+        options.innerHTML = "<tr><td>Connection lost :(</tr></td>";
+        connect();
+    };
+})();
+
+function update() {
+    httpGet("./data", function(x) {
+        if (update && x.readyState === 4 && x.status === 200) {
+            var data = JSON.parse(x.responseText);
+            if (data) {
+                var t = setTimeout(update, 500);
+                if (data.retailers && data.retailers.length > 0) {
+                    AddCaption("Pick a shop");
+                    for (var i = 0; i < data.retailers.length; ++i) {
+                        var r = data.retailers[i];
+                        (function(i, r) {
+                            AddOption(r.name).onmousedown = function() {
+                                clearTimeout(t);
+                                update = undefined;
+                                ws.send("r" + i);
+                                WaitForOrder(r);
+                            };
+                        })(i, r);
+                    }
+                } else {
+                    AddCaption("Waiting for a shop to open...");
+                }
+            }
+        }
+    });
+}
+update();
+
+function WaitForOrder(retailer) {
+    AddCaption("Waiting your turn for retailer &quot;" + retailer.name + "&quot;");
+    AddJump();
+}
+
+function Order() {
+    AddCaption("Pick a coffee size");
+    AddOption("Small").onmousedown = function() {
+        ws.send("o0");
+        WaitForProcess();
+    };
+    AddOption("Medium").onmousedown = function() {
+        ws.send("o1");
+        WaitForProcess();
+    };
+    AddOption("Large").onmousedown = function() {
+        ws.send("o2");
+        WaitForProcess();
+    };
+    AddJump();
+}
+
+function WaitForProcess() {
+    AddCaption("Your order is being processed...");
+    AddJump();
+}
+
+function Satisfied() {
+    AddCaption("Thanks for playing!");
+    AddOption("Go again").onmousedown = location.reload.bind(location);
+}
+
+function AddJump() {
+    AddOption("Jump").onmousedown = function() {
+        ws.send("j");
+    };
+}
+
+function Force() {
+    AddCaption("You were too slow! :(");
+    AddOption("Go again").onmousedown = location.reload.bind(location);
+}
+
+function AddCaption(text) {
+    options.innerHTML = '<tbody><tr style="height: 10%;"><td>' + text + '</tr></td></tbody>';
+}
+
+function AddOption(text) {
+    var row = options.insertRow(options.rows.length);
+    var td  = document.createElement("TD");
+    var b   = document.createElement("BUTTON");
+    b.innerText = text;
+    td.appendChild(b);
+    row.appendChild(td);
+    return b;
+}
+
+function httpGet(url, state) {
+    var x = new XMLHttpRequest();
+	x.onreadystatechange = function() {
+		state(x);
+	};
+	x.open("GET", url, true);
+	x.send(null);
+}
+})();
+        </script>
+    </body>
+</html>

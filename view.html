@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <style>
+body, html, #canvas {
+    margin: 0;
+    padding: 0;
+}
+
+#canvas {
+    z-index: -1;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+img {
+    display: none;
+}
+
+#fids-holder {
+    float: right;
+    width: 20%;
+    height: 100vh;
+    overflow: hidden;
+    background-color: black;
+}
+
+#fids {
+    width: 100%;
+    float: right;
+    border-collapse: collapse;
+    font-size: 1vw;
+    font-family: Arial;
+    color: white;
+    border: 1px solid black;
+}
+
+#fids th, #fids td {
+    text-align: left;
+    padding: 2px;
+    height: 20px;
+    overflow: hidden;
+}
+
+#fids th:first-child, #fids td:first-child {
+    width: 1%;
+    white-space: nowrap;
+}
+
+#fids th {
+    color: black; 
+    background-color: lightskyblue;
+}
+
+#fids tr:nth-child(even) {
+    background-color: #133163;
+}
+
+#fids tr:nth-child(odd) {
+    background-color: #055CB0;
+}
+
+#fids tr td:first-child {
+    font-weight: bold;
+}
+
+#event {
+    position: fixed;
+    top: 12.5%;
+    left: 5%;
+    width: 70%;
+    height: 75%;
+    background-color: gray;
+    z-index: 1;
+    border-radius: 5px;
+}
+
+#event-text {
+    font-weight: bold;
+    font-size: 1.3vw;
+    font-family: Courier New;
+    position: relative;
+    top: 10px;
+    left: 10px;
+    width: calc(100% - 20px);
+    height: calc(100% - 20px);
+    background-color: white;
+    border-radius: 5px;
+    white-space: pre;
+    overflow-y: scroll;
+}
+
+.hide {
+    display: none;
+}
+
+#play-holder {
+    position: fixed;
+    width: 800px;
+    height: 800px;
+    left: calc(80% - 161px);
+    bottom: -640px;
+}
+
+#play {
+    width: 800px;
+    height: 800px;
+    -ms-transform-origin: 0 0;
+    -moz-transform-origin: 0 0;
+    -o-transform-origin: 0 0;
+    -webkit-transform-origin: 0 0;
+    transform-origin: 0 0;
+    -ms-transform: scale(0.2);
+    -moz-transform: scale(0.2);
+    -o-transform: scale(0.2);
+    -webkit-transform: scale(0.2);
+    transform: scale(0.2);
+}
+        </style>
+    </head>
+
+    <body>
+        <img src="./images/truck.png" id="truck"></img>
+        <img src="./images/person.png" id="person"></img>
+        <img src="./images/shop.png" id="shop"></img>
+        <img src="./images/cup.png" id="cup"></img>
+        <img src="./images/warehouse.png" id="warehouse"></img>
+        <img src="./images/tower.png" id="tower"></img>
+        <canvas id="canvas"></canvas>
+        <div id="fids-holder">
+            <table id="fids">
+                <tr>
+                    <th>Time</th>
+                    <th>Source</th>
+                    <th>Type</th> 
+                </tr>
+            </table>
+        </div>
+        <div id="event" class="hide"><div id="event-text"></div></div>
+        <script src="./view.js"></script>
+        <div id="play-holder"><iframe id="play" class="hide"></iframe></div>
+    </body>
+</html>
