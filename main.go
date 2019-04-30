@@ -207,6 +207,7 @@ func (sj *SupplierJob) MarshalJSON() ([]byte, error) {
 
 type Supplier struct {
 	Name string         `json:"name"`
+	Logo string         `json:"logo"`
 	Jobs []*SupplierJob `json:"-"`
 }
 
@@ -239,7 +240,7 @@ func (supplier *Supplier) UpdateJob() {
 			"ce-source":      "Controller",
 			"ce-subject":     supplier.Name,
 			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339),
+			"ce-time":        time.Now().Format(time.RFC3339Nano),
 		},
 		ContentType: "application/json",
 		Body:        body,
@@ -253,6 +254,7 @@ func (supplier *Supplier) MarshalJSON() ([]byte, error) {
 type Retailer struct {
 	Name      string      `json:"-"`
 	Nickname  string      `json:"name"`
+	Logo      string      `json:"logo"`
 	Customers []*Customer `json:"customers"`
 }
 
@@ -294,6 +296,7 @@ func (cj *CarrierJob) MarshalJSON() ([]byte, error) {
 
 type Carrier struct {
 	Name string        `json:"name"`
+	Logo string        `json:"logo"`
 	Jobs []*CarrierJob `json:"-"`
 }
 
@@ -315,7 +318,7 @@ func (carrier *Carrier) UpdateJob() {
 			"ce-source":      "Controller",
 			"ce-subject":     carrier.Name,
 			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339),
+			"ce-time":        time.Now().Format(time.RFC3339Nano),
 		},
 		ContentType: "application/json",
 		Body:        body,
@@ -519,7 +522,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 									"ce-source":      "Passenger",
 									"ce-subject":     "Customer." + customer.Id,
 									"ce-id":          uuid.Must(uuid.NewV4()).String(),
-									"ce-time":        time.Now().Format(time.RFC3339),
+									"ce-time":        time.Now().Format(time.RFC3339Nano),
 								},
 								ContentType: "application/json",
 								Body:        []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
@@ -672,7 +675,7 @@ func PublishReset() {
 			"ce-type":        "Reset",
 			"ce-source":      "Controller",
 			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339),
+			"ce-time":        time.Now().Format(time.RFC3339Nano),
 		},
 		ContentType: "application/json",
 	})
@@ -687,7 +690,7 @@ func PublishDisconnect(name string) {
 			"ce-source":      "Controller",
 			"ce-subject":     name,
 			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339),
+			"ce-time":        time.Now().Format(time.RFC3339Nano),
 		},
 	})
 }
@@ -911,11 +914,12 @@ func Listen(addr string) {
 				case "Connection":
 					var data struct {
 						Organization string `json:"organization"`
+						Logo         string `json:"logo"`
 					}
 					if r == nil && json.Unmarshal(d.Body, &data) == nil {
-						r = &Retailer{Name: event.Source, Nickname: data.Organization}
+						r = &Retailer{Name: event.Source, Nickname: data.Organization, Logo: data.Logo}
 						airport.Retailers = append(airport.Retailers, r)
-						Broadcast(`{"type":"retailer"}`)
+						Broadcast(`{"type":"retailer","logo":"` + r.Logo + `"}`)
 						UpdateJobs()
 						fmt.Println("Connected retailer: ", r.Name)
 					}
@@ -929,11 +933,17 @@ func Listen(addr string) {
 				switch event.Type {
 				case "Connection":
 					if s == nil {
-						s = &Supplier{Name: event.Source}
-						airport.Suppliers = append(airport.Suppliers, s)
-						Broadcast(`{"type":"supplier"}`)
-						UpdateJobs()
-						fmt.Println("Connected supplier: ", s.Name)
+						var data struct {
+							Logo string `json:"logo"`
+						}
+
+						if json.Unmarshal(d.Body, &data) == nil {
+							s = &Supplier{Name: event.Source, Logo: data.Logo}
+							airport.Suppliers = append(airport.Suppliers, s)
+							Broadcast(`{"type":"supplier","logo":"` + s.Logo + `"}`)
+							UpdateJobs()
+							fmt.Println("Connected supplier: ", s.Name)
+						}
 					} else {
 						s.UpdateJob()
 						fmt.Println("Reconnected supplier: ", s.Name)
@@ -948,11 +958,17 @@ func Listen(addr string) {
 				switch event.Type {
 				case "Connection":
 					if c == nil {
-						c = &Carrier{Name: event.Source}
-						airport.Carriers = append(airport.Carriers, c)
-						Broadcast(`{"type":"carrier"}`)
-						UpdateJobs()
-						fmt.Println("Connected carrier: ", c.Name)
+						var data struct {
+							Logo string `json:"logo"`
+						}
+
+						if json.Unmarshal(d.Body, &data) == nil {
+							c = &Carrier{Name: event.Source, Logo: data.Logo}
+							airport.Carriers = append(airport.Carriers, c)
+							Broadcast(`{"type":"carrier","logo":"` + c.Logo + `"}`)
+							UpdateJobs()
+							fmt.Println("Connected carrier: ", c.Name)
+						}
 					} else {
 						c.UpdateJob()
 						fmt.Println("Reconnected carrier: ", c.Name)
@@ -986,7 +1002,7 @@ func Listen(addr string) {
 											"ce-source":      "Controller",
 											"ce-subject":     event.Subject,
 											"ce-id":          uuid.Must(uuid.NewV4()).String(),
-											"ce-time":        time.Now().Format(time.RFC3339),
+											"ce-time":        time.Now().Format(time.RFC3339Nano),
 										},
 										ContentType: "application/json",
 										Body:        body,
@@ -1014,7 +1030,7 @@ func main() {
 	flag.Parse()
 
 	if addr == "" {
-		log.Fatalln("Missing AMQP URL, use the '-u' flat to specify")
+		log.Fatalln("Missing AMQP URL, use the '-u' flag to specify")
 	}
 
 	go Listen(addr)

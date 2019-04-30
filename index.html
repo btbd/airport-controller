@@ -50,9 +50,10 @@ html, body {
 (function() {
 var ws       = null;
 var id       = "";
+var order    = "";
 var options  = document.getElementById("options");
 
-(function connect() {
+(function Connect() {
 	ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + window.location.pathname + "ws_customer")
 
     if (id) {
@@ -85,16 +86,16 @@ var options  = document.getElementById("options");
 
     ws.onclose = function() {
         options.innerHTML = "<tr><td>Connection lost :(</tr></td>";
-        connect();
+        Connect();
     };
 })();
 
-function update() {
-    httpGet("./data", function(x) {
-        if (update && x.readyState === 4 && x.status === 200) {
+function Update() {
+    HttpGet("./data", function(x) {
+        if (Update && x.readyState === 4 && x.status === 200) {
             var data = JSON.parse(x.responseText);
             if (data) {
-                var t = setTimeout(update, 500);
+                var t = setTimeout(Update, 500);
                 if (data.retailers && data.retailers.length > 0) {
                     AddCaption("Pick a shop");
                     for (var i = 0; i < data.retailers.length; ++i) {
@@ -102,7 +103,7 @@ function update() {
                         (function(i, r) {
                             AddOption(r.name).onmousedown = function() {
                                 clearTimeout(t);
-                                update = undefined;
+                                Update = undefined;
                                 ws.send("r" + i);
                                 WaitForOrder(r);
                             };
@@ -115,7 +116,7 @@ function update() {
         }
     });
 }
-update();
+Update();
 
 function WaitForOrder(retailer) {
     AddCaption("Waiting your turn for retailer &quot;" + retailer.name + "&quot;");
@@ -126,14 +127,17 @@ function Order() {
     AddCaption("Pick a coffee size");
     AddOption("Small").onmousedown = function() {
         ws.send("o0");
+        order = this.innerText.toLowerCase();
         WaitForProcess();
     };
     AddOption("Medium").onmousedown = function() {
         ws.send("o1");
+        order = this.innerText.toLowerCase();
         WaitForProcess();
     };
     AddOption("Large").onmousedown = function() {
         ws.send("o2");
+        order = this.innerText.toLowerCase();
         WaitForProcess();
     };
     AddJump();
@@ -145,7 +149,11 @@ function WaitForProcess() {
 }
 
 function Satisfied() {
-    AddCaption("Thanks for playing!");
+    if (order.length > 0) {
+        AddCaption("Thanks for playing!<br>Enjoy your " + order + " coffee!");
+    } else {
+        AddCaption("Your retailer went out of business! :(");
+    }
     AddOption("Go again").onmousedown = location.reload.bind(location);
 }
 
@@ -174,7 +182,7 @@ function AddOption(text) {
     return b;
 }
 
-function httpGet(url, state) {
+function HttpGet(url, state) {
     var x = new XMLHttpRequest();
 	x.onreadystatechange = function() {
 		state(x);

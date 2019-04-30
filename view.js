@@ -10,14 +10,16 @@ var sprite = {
     tower: document.getElementById("tower")
 };
 
-function Supplier() {
+function Supplier(logo) {
     this.width = 0;
     this.height = 0;
     this.x = 0;
     this.y = 0;
+    this.logo = new Image();
+    this.logo.src = logo;
 }
 
-function Carrier() {
+function Carrier(logo) {
     this.start = 0;
     this.supplier = undefined;
     this.retailer = undefined;
@@ -25,9 +27,11 @@ function Carrier() {
     this.height = 0;
     this.x = 0;
     this.y = 0;
+    this.logo = new Image();
+    this.logo.src = logo;
 }
 
-function Retailer() {
+function Retailer(logo) {
     this.width = 0;
     this.height = 0;
     this.x = 0;
@@ -36,6 +40,8 @@ function Retailer() {
     this.small = 10;
     this.medium = 10;
     this.large = 10;
+    this.logo = new Image();
+    this.logo.src = logo;
 }
 
 function Customer(retailer) {
@@ -61,6 +67,12 @@ var canvas = document.getElementById("canvas"),
 
 document.getElementById("fids-holder").onclick = canvas.onclick = function() { elEvent.classList.add("hide"); };
 ctx.scale(2, 2);
+var oldDrawImage = ctx.drawImage;
+ctx.drawImage = function( ){
+    try {
+        oldDrawImage.apply(this, arguments);
+    } catch (e) {}
+};
 
 var suppliers = [],
     carriers = [],
@@ -71,114 +83,119 @@ var suppliers = [],
     suppliers.length = carriers.length = retailers.length = customers.length = 0;
 
     httpGet("./data", function(x) {
-        if (x.readyState === 4 && x.status === 200) {
-            var data = JSON.parse(x.responseText);
-            if (data) {
-                if (data.suppliers) {
-                    for (var i = 0; i < data.suppliers.length; ++i) {
-                        suppliers.push(new Supplier());
+        if (x.readyState === 4) {
+            if (x.status === 200) {
+                var data = JSON.parse(x.responseText);
+                if (data) {
+                    if (data.suppliers) {
+                        for (var i = 0; i < data.suppliers.length; ++i) {
+                            suppliers.push(new Supplier(data.suppliers[i].logo));
+                        }
                     }
-                }
 
-                if (data.retailers) {
-                    for (var i = 0; i < data.retailers.length; ++i) {
-                        var dr = data.retailers[i];
-                        var r = new Retailer();
-                        if (dr.customers) {
-                            for (var e = 0; e < dr.customers.length; ++e) {
-                                new Customer(r);
+                    if (data.retailers) {
+                        for (var i = 0; i < data.retailers.length; ++i) {
+                            var dr = data.retailers[i];
+                            var r = new Retailer(dr.logo);
+                            if (dr.customers) {
+                                for (var e = 0; e < dr.customers.length; ++e) {
+                                    new Customer(r);
+                                }
+                            }
+
+                            retailers.push(r);
+                        }
+                    }
+
+                    carriers.length = 0;
+                    if (data.carriers) {
+                        for (var i = 0; i < data.carriers.length; ++i) {
+                            carriers.push(new Carrier(data.carriers[i].logo));
+                        }
+                    }
+
+                    var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + window.location.pathname.replace(/(view)(?!.*\/)/, "ws_view"));
+                    ws.onmessage = function(e) {
+                        var d = JSON.parse(e.data);
+                        if (d) {
+                            switch (d.type) {
+                                case "event":
+                                    var row = elFids.insertRow(1);
+                                    var event = d.event;
+                                    var time = new Date(event.time);
+                                    var h = time.getHours();
+                                    if (h < 10) h = "0" + h;
+                                    var m = time.getMinutes();
+                                    if (m < 10) m = "0" + m;
+                                    row.innerHTML = "<td>" + h + ":" + m + "</td><td>" + event.source.split(".")[0] + "</td><td>" + event.type + "</td>";
+                                    row.onclick = function(e) {
+                                        elEvent.children[0].innerText = JSON.stringify(event, null, 4);
+                                        elEvent.classList.remove("hide");
+                                        e.stopPropagation();
+                                    };
+                                    for (var i = 50; i < elFids.rows.length; ++i) elFids.deleteRow(50);
+                                    break;
+                                case "customer":
+                                    new Customer(retailers[d.r]);
+                                    break;
+                                case "jump":
+                                    var c = retailers[d.r].customers[d.c];
+                                    if (c.z === 0) retailers[d.r].customers[d.c].vz = canvas.height * 0.0075;
+                                    break;
+                                case "satisfied":
+                                    retailers[d.r].customers[d.c].satisfied = true;
+                                    break;
+                                case "retailer":
+                                    retailers.push(new Retailer(d.logo));
+                                    break;
+                                case "rmretailer":
+                                    var r = retailers.splice(d.r, 1)[0];
+                                    for (var i = 0; i < r.customers.length; ++i) {
+                                        var c = r.customers[i];
+                                        c.speed = -0.5 + Math.random();
+                                        c.start = Date.now();
+                                        customers.push(c);
+                                    }
+                                    break;
+                                case "supplier":
+                                    suppliers.push(new Supplier(d.logo));
+                                    break;
+                                case "rmsupplier":
+                                    for (var i = 0; i < carriers.length; ++i) {
+                                        if (carriers[i].supplier == d.s) {
+                                            carriers.splice(i--, 1);
+                                        }
+                                    }
+                                    suppliers.splice(d.s, 1);
+                                    break;
+                                case "carrier":
+                                    carriers.push(new Carrier(d.logo));
+                                    break;
+                                case "rmcarrier":
+                                    carriers.splice(d.c, 1);
+                                    break;
+                                case "gocarrier":
+                                    carriers[d.c].supplier = suppliers[d.s];
+                                    carriers[d.c].retailer = retailers[d.r];
+                                    carriers[d.c].start = Date.now();
+                                    break;
+                                case "small":
+                                    retailers[d.r].small = d.c;
+                                    break;
+                                case "medium":
+                                    retailers[d.r].medium = d.c;
+                                    break;
+                                case "large":
+                                    retailers[d.r].large = d.c;
+                                    break;
                             }
                         }
+                    };
 
-                        retailers.push(r);
-                    }
+                    ws.onclose = connect;
                 }
-
-                if (data.carriers) {
-                    for (var i = 0; i < data.carriers.length; ++i) {
-                        carriers.push(new Carrier());
-                    }
-                }
-
-                var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + window.location.pathname.replace(/(view)(?!.*\/)/, "ws_view"));
-                ws.onmessage = function(e) {
-                    var d = JSON.parse(e.data);
-                    if (d) {
-                        switch (d.type) {
-                            case "event":
-                                var row = elFids.insertRow(1);
-                                var event = d.event;
-                                var time = new Date(event.time);
-                                var h = time.getHours();
-                                if (h < 10) h = "0" + h;
-                                var m = time.getMinutes();
-                                if (m < 10) m = "0" + m;
-                                row.innerHTML = "<td>" + h + ":" + m + "</td><td>" + event.source.split(".")[0] + "</td><td>" + event.type + "</td>";
-                                row.onclick = function(e) {
-                                    elEvent.children[0].innerText = JSON.stringify(event, null, 4);
-                                    elEvent.classList.remove("hide");
-                                    e.stopPropagation();
-                                };
-                                for (var i = 50; i < elFids.rows.length; ++i) elFids.deleteRow(50);
-                                break;
-                            case "customer":
-                                new Customer(retailers[d.r]);
-                                break;
-                            case "jump":
-                                var c = retailers[d.r].customers[d.c];
-                                if (c.z === 0) retailers[d.r].customers[d.c].vz = canvas.height * 0.0075;
-                                break;
-                            case "satisfied":
-                                retailers[d.r].customers[d.c].satisfied = true;
-                                break;
-                            case "retailer":
-                                retailers.push(new Retailer());
-                                break;
-                            case "rmretailer":
-                                var r = retailers.splice(d.r, 1)[0];
-                                for (var i = 0; i < r.customers.length; ++i) {
-                                    var c = r.customers[i];
-                                    c.speed = -0.5 + Math.random();
-                                    c.start = Date.now();
-                                    customers.push(c);
-                                }
-                                break;
-                            case "supplier":
-                                suppliers.push(new Supplier());
-                                break;
-                            case "rmsupplier":
-                                for (var i = 0; i < carriers.length; ++i) {
-                                    if (carriers[i].supplier == d.s) {
-                                        carriers.splice(i--, 1);
-                                    }
-                                }
-                                suppliers.splice(d.s, 1);
-                                break;
-                            case "carrier":
-                                carriers.push(new Carrier());
-                                break;
-                            case "rmcarrier":
-                                carriers.splice(d.c, 1);
-                                break;
-                            case "gocarrier":
-                                carriers[d.c].supplier = suppliers[d.s];
-                                carriers[d.c].retailer = retailers[d.r];
-                                carriers[d.c].start = Date.now();
-                                break;
-                            case "small":
-                                retailers[d.r].small = d.c;
-                                break;
-                            case "medium":
-                                retailers[d.r].medium = d.c;
-                                break;
-                            case "large":
-                                retailers[d.r].large = d.c;
-                                break;
-                        }
-                    }
-                };
-
-                ws.onclose = connect;
+            } else {
+                setTimeout(connect, 500);
             }
         }
     });
@@ -190,6 +207,31 @@ function drawImage(img, x, y, width, height, angle) {
     ctx.drawImage(img, -width / 2, -height / 2, width, height);
     ctx.rotate(-angle);
     ctx.translate(-x, -y);
+}
+
+function drawLogo(img, x, y, r) {
+    if (img && img.complete) {
+        var w = r * 2;
+        var h = (img.height / img.width) * w;
+				
+		ctx.fillStyle = "white";
+		ctx.beginPath();
+		ctx.arc(x, y, r, 0, 2 * Math.PI);
+		ctx.closePath();
+		ctx.fill();
+				
+		ctx.save();
+		ctx.beginPath();
+		ctx.arc(x, y, r, 0, 2 * Math.PI);
+		ctx.closePath();
+		ctx.clip();
+		ctx.drawImage(img, x - (w / 2), y - (h / 2), w, h);
+		ctx.beginPath();
+		ctx.arc(x, y, r, 0, 2 * Math.PI);
+		ctx.clip();
+		ctx.closePath();
+		ctx.restore();
+    }
 }
 
 function drawSprite(img, x, y, width, height, framex, framesx, framey, framesy) {
@@ -227,16 +269,16 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
 
     ctx.fillStyle = "lightgreen";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#3a3a39";
     ctx.strokeStyle = "white";
     ctx.lineWidth = canvas.width * 0.005;
     for (var i = 0; i < carriers.length; ++i) {
         var c = carriers[i];
-        c.width = c.height = canvas.width * 0.05;
+        c.width = c.height = canvas.width * 0.06;
         var px = canvas.width - c.width / 1.5;
         var py = canvas.height / 3 + (i * c.height) - ((carriers.length) * c.height / 2);
         var cx = px - c.width / 1.5;
         var cy = py - c.height / 2;
+        ctx.fillStyle = "#3a3a39";
         ctx.fillRect(cx, cy, c.width * 2, c.height);
         ctx.beginPath();
         ctx.moveTo(cx, cy);
@@ -251,6 +293,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
             var t = (Date.now() - c.start) / 1000;
             var x = c.x;
             var y = c.y;
+            var o = c.width / 10;
 
             ctx.save();
             ctx.rect(0, c.supplier.y + c.supplier.height, canvas.width, canvas.height);
@@ -273,36 +316,40 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                     c.y = c.supplier.y + c.supplier.height / 2 - c.height / 2 + (Math.pow(Math.sin(Math.PI * t - Math.PI / 2), 5) / 2 + 1 / 2) * dy;
                 }
                 drawImage(sprite.truck, c.x, c.y, c.width, c.height, Math.atan2(y - c.y, x - c.x));
-            } else if (t < 8) {
+            } else if (t < 6) {
                 t -= 4;
-                t /= 4;
+                t /= 2;
                 t = 1 - t;
                 c.x = c.retailer.x + (1 - t) * (px - c.retailer.x);
                 c.y = py + Math.pow(t, 5) * (c.retailer.y - py);
                 drawImage(sprite.truck, c.x, c.y, c.width, c.height, Math.atan2(c.y - y, c.x - x));
+                o = -o;
             } else {
                 c.supplier = c.retailer = undefined;
                 drawImage(sprite.truck, c.x = px, c.y = py, c.width, c.height, 0);
+                o = 0;
             }
 
+            var a = Math.atan2(y - c.y, x - c.x);
+            drawLogo(c.logo, c.x + o * Math.cos(a), c.y + o * Math.sin(a), c.height * 0.2);
             ctx.restore();
         } else {
             drawImage(sprite.truck, c.x = px, c.y = py, c.width, c.height, 0);
+            drawLogo(c.logo, c.x + c.width / 10, c.y, c.height * 0.2);
         }
-
-        continue;
     }
 
     for (var i = 0, o = canvas.width / (suppliers.length + 1), x = o; i < suppliers.length; ++i, x += o) {
         var s = suppliers[i];
 
         s.height = 0.10 * canvas.height;
-        s.width = 2 * s.height;
+        s.width = 1.9 * s.height;
         s.x = x;
         s.y = 0;
 
         ctx.fillStyle = "gray";
         ctx.drawImage(sprite.warehouse, s.x - s.width / 2, s.y, s.width, s.height);
+        drawLogo(s.logo, s.x, s.y + s.height / 1.7, s.height * 0.3);
     }
 
     var w = canvas.height * 0.25;
@@ -359,6 +406,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
         }
 
         ctx.drawImage(sprite.shop, r.x - r.width / 2, r.y, r.width, r.height);
+        drawLogo(r.logo, r.x, r.y, r.height * 0.2);
 
         for (var e = 0; e < r.customers.length; ++e) {
             var c = r.customers[e];
