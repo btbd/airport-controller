@@ -41,7 +41,7 @@ var TimeoutEvents = []TimeoutEvent{
 			"orderStatus": "OrderReleased",
 		},
 		Expect: EXPECT_PROVIDER,
-		Resend: true,
+		Resend: false, // Don't resend since the retailer vanished
 	},
 	{
 		Type:    "Order",
