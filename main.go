@@ -235,12 +235,12 @@ func (supplier *Supplier) UpdateJob() {
 	body, _ := json.Marshal(supplier.Jobs)
 	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
 		Headers: amqp.Table{
-			"ce-specversion": "0.3",
-			"ce-type":        "Offer.Product",
-			"ce-source":      "Controller",
-			"ce-subject":     supplier.Name,
-			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339Nano),
+			"cloudEvents:specversion": "0.3",
+			"cloudEvents:type":        "Offer.Product",
+			"cloudEvents:source":      "Controller",
+			"cloudEvents:subject":     supplier.Name,
+			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
+			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
 		},
 		ContentType: "application/json",
 		Body:        body,
@@ -313,12 +313,12 @@ func (carrier *Carrier) UpdateJob() {
 	body, _ := json.Marshal(carrier.Jobs)
 	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
 		Headers: amqp.Table{
-			"ce-specversion": "0.3",
-			"ce-type":        "Offer.Service.Transport",
-			"ce-source":      "Controller",
-			"ce-subject":     carrier.Name,
-			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339Nano),
+			"cloudEvents:specversion": "0.3",
+			"cloudEvents:type":        "Offer.Service.Transport",
+			"cloudEvents:source":      "Controller",
+			"cloudEvents:subject":     carrier.Name,
+			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
+			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
 		},
 		ContentType: "application/json",
 		Body:        body,
@@ -517,12 +517,12 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 							customer.State = CUSTOMER_ORDERED
 							airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
 								Headers: amqp.Table{
-									"ce-specversion": "0.3",
-									"ce-type":        "Order",
-									"ce-source":      "Passenger",
-									"ce-subject":     "Customer." + customer.Id,
-									"ce-id":          uuid.Must(uuid.NewV4()).String(),
-									"ce-time":        time.Now().Format(time.RFC3339Nano),
+									"cloudEvents:specversion": "0.3",
+									"cloudEvents:type":        "Order",
+									"cloudEvents:source":      "Passenger",
+									"cloudEvents:subject":     "Customer." + customer.Id,
+									"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
+									"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
 								},
 								ContentType: "application/json",
 								Body:        []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
@@ -648,13 +648,13 @@ func DeliveryToEvent(d *amqp.Delivery) (*CloudEvent, error) {
 			return nil, err
 		}
 	} else {
-		event.SpecVersion = GetAMQPHeader(d, "ce-specversion")
-		event.Type = GetAMQPHeader(d, "ce-type")
-		event.Source = GetAMQPHeader(d, "ce-source")
-		event.Subject = GetAMQPHeader(d, "ce-subject")
-		event.ID = GetAMQPHeader(d, "ce-id")
-		event.Time = GetAMQPHeader(d, "ce-time")
-		event.Cause = GetAMQPHeader(d, "ce-cause")
+		event.SpecVersion = GetAMQPHeader(d, "cloudEvents:specversion")
+		event.Type = GetAMQPHeader(d, "cloudEvents:type")
+		event.Source = GetAMQPHeader(d, "cloudEvents:source")
+		event.Subject = GetAMQPHeader(d, "cloudEvents:subject")
+		event.ID = GetAMQPHeader(d, "cloudEvents:id")
+		event.Time = GetAMQPHeader(d, "cloudEvents:time")
+		event.Cause = GetAMQPHeader(d, "cloudEvents:cause")
 		event.ContentType = d.ContentType
 		event.Data = d.Body
 	}
@@ -671,11 +671,11 @@ func GetAMQPHeader(d *amqp.Delivery, name string) string {
 func PublishReset() {
 	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
 		Headers: amqp.Table{
-			"ce-specversion": "0.3",
-			"ce-type":        "Reset",
-			"ce-source":      "Controller",
-			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339Nano),
+			"cloudEvents:specversion": "0.3",
+			"cloudEvents:type":        "Reset",
+			"cloudEvents:source":      "Controller",
+			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
+			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
 		},
 		ContentType: "application/json",
 	})
@@ -685,12 +685,12 @@ func PublishDisconnect(name string) {
 	fmt.Println("Published timeout disconnect for: " + name)
 	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
 		Headers: amqp.Table{
-			"ce-specversion": "0.3",
-			"ce-type":        "Disconnect",
-			"ce-source":      "Controller",
-			"ce-subject":     name,
-			"ce-id":          uuid.Must(uuid.NewV4()).String(),
-			"ce-time":        time.Now().Format(time.RFC3339Nano),
+			"cloudEvents:specversion": "0.3",
+			"cloudEvents:type":        "Disconnect",
+			"cloudEvents:source":      "Controller",
+			"cloudEvents:subject":     name,
+			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
+			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
 		},
 	})
 }
@@ -997,12 +997,12 @@ func Listen(addr string) {
 									body, _ := json.Marshal(data)
 									airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
 										Headers: amqp.Table{
-											"ce-specversion": "0.3",
-											"ce-type":        "TransferAction",
-											"ce-source":      "Controller",
-											"ce-subject":     event.Subject,
-											"ce-id":          uuid.Must(uuid.NewV4()).String(),
-											"ce-time":        time.Now().Format(time.RFC3339Nano),
+											"cloudEvents:specversion": "0.3",
+											"cloudEvents:type":        "TransferAction",
+											"cloudEvents:source":      "Controller",
+											"cloudEvents:subject":     event.Subject,
+											"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
+											"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
 										},
 										ContentType: "application/json",
 										Body:        body,
