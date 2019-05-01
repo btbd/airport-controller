@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,15 +16,16 @@ import (
 
 	"github.com/gorilla/websocket"
 	uuid "github.com/satori/go.uuid"
-	"github.com/streadway/amqp"
+	"pack.ag/amqp"
 )
 
 var airport struct {
-	Suppliers []*Supplier   `json:"suppliers"`
-	Retailers []*Retailer   `json:"retailers"`
-	Carriers  []*Carrier    `json:"carriers"`
-	Mutex     sync.RWMutex  `json:"-"`
-	Channel   *amqp.Channel `json:"-"`
+	Suppliers []*Supplier     `json:"suppliers"`
+	Retailers []*Retailer     `json:"retailers"`
+	Carriers  []*Carrier      `json:"carriers"`
+	Mutex     sync.RWMutex    `json:"-"`
+	Sender    *amqp.Sender    `json:"-"`
+	Context   context.Context `json:"-"`
 }
 
 var upgrader = websocket.Upgrader{}
@@ -117,7 +119,7 @@ type TimeoutEvent struct {
 }
 
 type ActiveTimeoutEvent struct {
-	Message amqp.Delivery
+	Message *amqp.Message
 	Timer   *time.Timer
 }
 
@@ -198,7 +200,7 @@ func (customer *Customer) MarshalJSON() ([]byte, error) {
 
 type SupplierJob struct {
 	Retailer string   `json:"customer"`
-	Sizes    []string `json:"offer"`
+	Offers   []string `json:"offer"`
 }
 
 func (sj *SupplierJob) MarshalJSON() ([]byte, error) {
@@ -231,20 +233,40 @@ func (supplier *Supplier) Disconnect() {
 	}
 }
 
+func EventToMessage(event *CloudEvent) *amqp.Message {
+	if event.SpecVersion == "" {
+		event.SpecVersion = "0.3"
+	}
+	if event.ID == "" {
+		event.ID = uuid.Must(uuid.NewV4()).String()
+	}
+	if event.Time == "" {
+		event.Time = time.Now().Format(time.RFC3339Nano)
+	}
+	return &amqp.Message{
+		Properties: &amqp.MessageProperties{
+			ContentType: "application/json",
+		},
+		ApplicationProperties: map[string]interface{}{
+			"cloudEvents:specversion": event.SpecVersion,
+			"cloudEvents:type":        event.Type,
+			"cloudEvents:source":      event.Source,
+			"cloudEvents:subject":     event.Subject,
+			"cloudEvents:id":          event.ID,
+			"cloudEvents:time":        event.Time,
+		},
+		Data: [][]byte{event.Data},
+	}
+}
+
 func (supplier *Supplier) UpdateJob() {
 	body, _ := json.Marshal(supplier.Jobs)
-	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-		Headers: amqp.Table{
-			"cloudEvents:specversion": "0.3",
-			"cloudEvents:type":        "Offer.Product",
-			"cloudEvents:source":      "Controller",
-			"cloudEvents:subject":     supplier.Name,
-			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
-			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
-		},
-		ContentType: "application/json",
-		Body:        body,
-	})
+	airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+		Type:    "Offer.Product",
+		Source:  "Controller",
+		Subject: supplier.Name,
+		Data:    body,
+	}))
 }
 
 func (supplier *Supplier) MarshalJSON() ([]byte, error) {
@@ -311,18 +333,12 @@ func (carrier *Carrier) Disconnect() {
 
 func (carrier *Carrier) UpdateJob() {
 	body, _ := json.Marshal(carrier.Jobs)
-	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-		Headers: amqp.Table{
-			"cloudEvents:specversion": "0.3",
-			"cloudEvents:type":        "Offer.Service.Transport",
-			"cloudEvents:source":      "Controller",
-			"cloudEvents:subject":     carrier.Name,
-			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
-			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
-		},
-		ContentType: "application/json",
-		Body:        body,
-	})
+	airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+		Type:    "Offer.Service.Transport",
+		Source:  "Controller",
+		Subject: carrier.Name,
+		Data:    body,
+	}))
 }
 
 func (carrier *Carrier) GetPosition() int {
@@ -515,18 +531,12 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 						airport.Mutex.Lock()
 						if customer.State == CUSTOMER_ORDERING {
 							customer.State = CUSTOMER_ORDERED
-							airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-								Headers: amqp.Table{
-									"cloudEvents:specversion": "0.3",
-									"cloudEvents:type":        "Order",
-									"cloudEvents:source":      "Passenger",
-									"cloudEvents:subject":     "Customer." + customer.Id,
-									"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
-									"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
-								},
-								ContentType: "application/json",
-								Body:        []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
-							})
+							airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+								Type:    "Order",
+								Source:  "Passenger",
+								Subject: "Customer." + customer.Id,
+								Data:    []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
+							}))
 						}
 						airport.Mutex.Unlock()
 					}
@@ -601,14 +611,14 @@ func UpdateJobs() {
 			func() {
 				for _, j := range supplier.Jobs {
 					if j.Retailer == r.Name {
-						j.Sizes = append(j.Sizes, s)
+						j.Offers = append(j.Offers, s)
 						return
 					}
 				}
 
 				supplier.Jobs = append(supplier.Jobs, &SupplierJob{
 					Retailer: r.Name,
-					Sizes:    []string{s},
+					Offers:   []string{s},
 				})
 			}()
 
@@ -640,386 +650,399 @@ func UpdateJobs() {
 	}
 }
 
-func DeliveryToEvent(d *amqp.Delivery) (*CloudEvent, error) {
+func MessageToEvent(m *amqp.Message) (*CloudEvent, error) {
 	event := CloudEvent{}
-	if d.ContentType == "application/cloudevents+json" {
-		err := json.Unmarshal(d.Body, &event)
-		if err != nil {
-			return nil, err
+	if m.Properties.ContentType == "application/cloudevents+json" {
+		if len(m.Data) > 0 {
+			err := json.Unmarshal(m.Data[0], &event)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else {
-		event.SpecVersion = GetAMQPHeader(d, "cloudEvents:specversion")
-		event.Type = GetAMQPHeader(d, "cloudEvents:type")
-		event.Source = GetAMQPHeader(d, "cloudEvents:source")
-		event.Subject = GetAMQPHeader(d, "cloudEvents:subject")
-		event.ID = GetAMQPHeader(d, "cloudEvents:id")
-		event.Time = GetAMQPHeader(d, "cloudEvents:time")
-		event.Cause = GetAMQPHeader(d, "cloudEvents:cause")
-		event.ContentType = d.ContentType
-		event.Data = d.Body
+		event.SpecVersion = GetAMQPHeader(m, "cloudEvents:specversion")
+		event.Type = GetAMQPHeader(m, "cloudEvents:type")
+		event.Source = GetAMQPHeader(m, "cloudEvents:source")
+		event.Subject = GetAMQPHeader(m, "cloudEvents:subject")
+		event.ID = GetAMQPHeader(m, "cloudEvents:id")
+		event.Time = GetAMQPHeader(m, "cloudEvents:time")
+		event.Cause = GetAMQPHeader(m, "cloudEvents:cause")
+		event.ContentType = m.Properties.ContentType
+		if len(m.Data) > 0 {
+			event.Data = m.Data[0]
+		}
 	}
 	return &event, nil
 }
 
-func GetAMQPHeader(d *amqp.Delivery, name string) string {
-	if s, ok := d.Headers[name].(string); ok {
+func GetAMQPHeader(m *amqp.Message, name string) string {
+	if s, ok := m.ApplicationProperties[name].(string); ok {
 		return s
 	}
 	return ""
 }
 
 func PublishReset() {
-	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-		Headers: amqp.Table{
-			"cloudEvents:specversion": "0.3",
-			"cloudEvents:type":        "Reset",
-			"cloudEvents:source":      "Controller",
-			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
-			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
-		},
-		ContentType: "application/json",
-	})
+	err := airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+		Type:   "Reset",
+		Source: "Controller",
+	}))
+	if err != nil {
+		log.Printf("error: %s\n", err)
+	}
 }
 
 func PublishDisconnect(name string) {
 	fmt.Println("Published timeout disconnect for: " + name)
-	airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-		Headers: amqp.Table{
-			"cloudEvents:specversion": "0.3",
-			"cloudEvents:type":        "Disconnect",
-			"cloudEvents:source":      "Controller",
-			"cloudEvents:subject":     name,
-			"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
-			"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
-		},
-	})
+	airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+		Type:    "Disconnect",
+		Source:  "Controller",
+		Subject: name,
+	}))
 }
 
-func Listen(addr string) {
-	conn, err := amqp.Dial(addr)
+func Listen(queueURL string) {
+	// amqp://user:pass@asdads/
+	exchange := "/exchange/amq.fanout"
+	addr, err := url.Parse(queueURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error parsing URL(%s): %s", queueURL, err)
 	}
-	defer conn.Close()
+	user := addr.User
+	password, _ := user.Password()
+	addr.User = nil
 
-	airport.Channel, err = conn.Channel()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = airport.Channel.ExchangeDeclare("airport", "topic", true, false, false, false, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	q, err := airport.Channel.QueueDeclare("", false, false, false, false, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = airport.Channel.QueueBind(q.Name, "#", "airport", false, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	msgs, err := airport.Channel.Consume(q.Name, "", true, false, false, false, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	PublishReset()
-
-	for d := range msgs {
-		event, err := DeliveryToEvent(&d)
+	for { // never stop!
+		log.Printf("Dialing: %s", addr)
+		client, err := amqp.Dial(addr.String(),
+			amqp.ConnSASLPlain(user.Username(), password))
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			log.Println(err)
+			time.Sleep(2 * time.Second)
 			continue
 		}
 
-		airport.Mutex.Lock()
-		if event.Source != "Controller" {
-			if event.Source != "Truck" {
-				data, _ := json.Marshal(event)
-				Broadcast(`{"type":"event","event":` + string(data) + `}`)
+		airport.Context = context.Background()
+
+		log.Printf("Creating a new session...\n")
+		session, err := client.NewSession()
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		log.Printf("Creating a new sender...\n")
+		airport.Sender, err = session.NewSender(amqp.LinkTargetAddress(exchange))
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		log.Printf("Creating a new receiver...\n")
+		receiver, err := session.NewReceiver(
+			amqp.LinkSourceAddress(exchange),
+			amqp.LinkCredit(10),
+		)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		PublishReset()
+
+		for {
+			m, err := receiver.Receive(airport.Context)
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			m.Accept()
+
+			event, err := MessageToEvent(m)
+			if err != nil {
+				log.Println(err)
+				continue
 			}
 
-			if event.Type == "Reset" {
-				for _, r := range airport.Retailers {
-					for _, c := range r.Customers {
-						c.Satisfy(false)
+			ProcessEvent(event, m)
+		}
+	}
+}
+
+func ProcessEvent(event *CloudEvent, m *amqp.Message) {
+	airport.Mutex.Lock()
+	if event.Source != "Controller" {
+		if event.Source != "Truck" {
+			data, _ := json.Marshal(event)
+			Broadcast(`{"type":"event","event":` + string(data) + `}`)
+		}
+
+		if event.Type == "Reset" {
+			for _, r := range airport.Retailers {
+				for _, c := range r.Customers {
+					c.Satisfy(false)
+				}
+
+				Broadcast(`{"type":"rmretailer","r":0}`)
+			}
+
+			for range airport.Suppliers {
+				Broadcast(`{"type":"rmsupplier","r":0}`)
+			}
+
+			airport.Retailers = nil
+			airport.Suppliers = nil
+			airport.Carriers = nil
+			UpdateJobs()
+
+			PublishReset()
+		}
+	}
+
+	source := strings.Split(event.Source, ".")
+	if len(event.Cause) > 0 {
+		if ate, ok := ates[event.Cause]; ok {
+			ate.Timer.Stop()
+			delete(ates, event.Cause)
+		}
+	}
+
+	if len(event.Source) > 0 && len(event.ID) > 0 {
+		var data map[string]interface{}
+		if json.Unmarshal(event.Data, &data) == nil {
+		loop:
+			for _, t := range TimeoutEvents {
+				if t.Type != event.Type || t.Source != source[0] {
+					continue loop
+				}
+
+				for k, v := range t.Data {
+					if v != data[k] {
+						continue loop
 					}
-
-					Broadcast(`{"type":"rmretailer","r":0}`)
 				}
 
-				for range airport.Suppliers {
-					Broadcast(`{"type":"rmsupplier","r":0}`)
-				}
-
-				airport.Retailers = nil
-				airport.Suppliers = nil
-				airport.Carriers = nil
-				UpdateJobs()
-
-				PublishReset()
-			}
-		}
-
-		source := strings.Split(event.Source, ".")
-		if len(event.Cause) > 0 {
-			if ate, ok := ates[event.Cause]; ok {
-				ate.Timer.Stop()
-				delete(ates, event.Cause)
-			}
-		}
-
-		if len(event.Source) > 0 && len(event.ID) > 0 {
-			var data map[string]interface{}
-			if json.Unmarshal(d.Body, &data) == nil {
-			loop:
-				for _, t := range TimeoutEvents {
-					if t.Type != event.Type || t.Source != source[0] {
+				var disconnect func()
+				switch t.Expect {
+				case EXPECT_PROVIDER:
+					name, ok := data["provider"].(string)
+					if !ok {
 						continue loop
 					}
 
-					for k, v := range t.Data {
-						if v != data[k] {
-							continue loop
+					r := GetRetailer(name)
+					if r == nil {
+						continue loop
+					}
+
+					disconnect = r.Disconnect
+				case EXPECT_SUPPLIER:
+					if GetRetailer(event.Source) == nil {
+						continue loop
+					}
+
+					var supplier *Supplier
+				suppliers:
+					for _, s := range airport.Suppliers {
+						for _, j := range s.Jobs {
+							if j.Retailer == event.Source {
+								supplier = s
+								break suppliers
+							}
 						}
 					}
 
-					var disconnect func()
-					switch t.Expect {
-					case EXPECT_PROVIDER:
-						name, ok := data["provider"].(string)
-						if !ok {
-							continue loop
-						}
-
-						r := GetRetailer(name)
-						if r == nil {
-							continue loop
-						}
-
-						disconnect = r.Disconnect
-					case EXPECT_SUPPLIER:
-						if GetRetailer(event.Source) == nil {
-							continue loop
-						}
-
-						var supplier *Supplier
-					suppliers:
-						for _, s := range airport.Suppliers {
-							for _, j := range s.Jobs {
-								if j.Retailer == event.Source {
-									supplier = s
-									break suppliers
-								}
-							}
-						}
-
-						if supplier == nil {
-							continue loop
-						}
-
-						disconnect = supplier.Disconnect
-					case EXPECT_RETAILER:
-						name, ok := data["toLocation"].(string)
-						if !ok {
-							continue loop
-						}
-
-						r := GetRetailer(name)
-						if r == nil {
-							continue loop
-						}
-
-						disconnect = r.Disconnect
-					case EXPECT_CARRIER:
-						retailer, ok := data["toLocation"].(string)
-						if !ok || GetRetailer(retailer) == nil {
-							continue loop
-						}
-
-						supplier, ok := data["fromLocation"].(string)
-						if !ok || GetSupplier(supplier) == nil {
-							continue loop
-						}
-
-						var carrier *Carrier
-					carriers:
-						for _, c := range airport.Carriers {
-							for _, j := range c.Jobs {
-								if j.Retailer == retailer && j.Supplier == supplier {
-									carrier = c
-									break carriers
-								}
-							}
-						}
-
-						if carrier == nil {
-							continue loop
-						}
-
-						disconnect = carrier.Disconnect
+					if supplier == nil {
+						continue loop
 					}
 
-					func(t TimeoutEvent) {
-						ate := ActiveTimeoutEvent{
-							Message: d,
-							Timer: time.AfterFunc(t.Timeout, func() {
-								airport.Mutex.Lock()
-								fmt.Println("Disconnected due to: " + event.ID)
-								disconnect()
-								if t.Resend {
-									airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-										Headers:         d.Headers,
-										ContentType:     d.ContentType,
-										ContentEncoding: d.ContentEncoding,
-										Body:            d.Body,
-									})
-								}
-								delete(ates, event.ID)
-								airport.Mutex.Unlock()
-							}),
+					disconnect = supplier.Disconnect
+				case EXPECT_RETAILER:
+					name, ok := data["toLocation"].(string)
+					if !ok {
+						continue loop
+					}
+
+					r := GetRetailer(name)
+					if r == nil {
+						continue loop
+					}
+
+					disconnect = r.Disconnect
+				case EXPECT_CARRIER:
+					retailer, ok := data["toLocation"].(string)
+					if !ok || GetRetailer(retailer) == nil {
+						continue loop
+					}
+
+					supplier, ok := data["fromLocation"].(string)
+					if !ok || GetSupplier(supplier) == nil {
+						continue loop
+					}
+
+					var carrier *Carrier
+				carriers:
+					for _, c := range airport.Carriers {
+						for _, j := range c.Jobs {
+							if j.Retailer == retailer && j.Supplier == supplier {
+								carrier = c
+								break carriers
+							}
 						}
-						ates[event.ID] = &ate
-					}(t)
+					}
+
+					if carrier == nil {
+						continue loop
+					}
+
+					disconnect = carrier.Disconnect
 				}
+
+				func(t TimeoutEvent) {
+					ate := ActiveTimeoutEvent{
+						Message: m,
+						Timer: time.AfterFunc(t.Timeout, func() {
+							airport.Mutex.Lock()
+							fmt.Println("Disconnected due to: " + event.ID)
+							disconnect()
+							if t.Resend {
+								// TODO: check this
+								airport.Sender.Send(airport.Context, m)
+							}
+							delete(ates, event.ID)
+							airport.Mutex.Unlock()
+						}),
+					}
+					ates[event.ID] = &ate
+				}(t)
 			}
 		}
-
-		if len(source) > 1 {
-			switch source[0] {
-			case "Retailer":
-				r := GetRetailer(event.Source)
-				switch event.Type {
-				case "Order":
-					var data struct {
-						OrderStatus string `json:"orderStatus"`
-						Offer       string `json:"offer"`
-					}
-					if r != nil && json.Unmarshal(d.Body, &data) == nil {
-						switch data.OrderStatus {
-						case "OrderReleased":
-							Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(r.GetPosition()) + `,"c":0}`)
-						case "OrderDelivered":
-							if len(r.Customers) > 0 {
-								if c := r.Customers[0]; c.State == CUSTOMER_ORDERED {
-									c.Satisfy(false)
-								}
-							}
-						}
-					}
-				case "Connection":
-					var data struct {
-						Organization string `json:"organization"`
-						Logo         string `json:"logo"`
-					}
-					if r == nil && json.Unmarshal(d.Body, &data) == nil {
-						r = &Retailer{Name: event.Source, Nickname: data.Organization, Logo: data.Logo}
-						airport.Retailers = append(airport.Retailers, r)
-						Broadcast(`{"type":"retailer","logo":"` + r.Logo + `"}`)
-						UpdateJobs()
-						fmt.Println("Connected retailer: ", r.Name)
-					}
-				case "Disconnect":
-					if r != nil {
-						r.Disconnect()
-					}
-				}
-			case "Supplier":
-				s := GetSupplier(event.Source)
-				switch event.Type {
-				case "Connection":
-					if s == nil {
-						var data struct {
-							Logo string `json:"logo"`
-						}
-
-						if json.Unmarshal(d.Body, &data) == nil {
-							s = &Supplier{Name: event.Source, Logo: data.Logo}
-							airport.Suppliers = append(airport.Suppliers, s)
-							Broadcast(`{"type":"supplier","logo":"` + s.Logo + `"}`)
-							UpdateJobs()
-							fmt.Println("Connected supplier: ", s.Name)
-						}
-					} else {
-						s.UpdateJob()
-						fmt.Println("Reconnected supplier: ", s.Name)
-					}
-				case "Disconnect":
-					if s != nil {
-						s.Disconnect()
-					}
-				}
-			case "Carrier":
-				c := GetCarrier(event.Source)
-				switch event.Type {
-				case "Connection":
-					if c == nil {
-						var data struct {
-							Logo string `json:"logo"`
-						}
-
-						if json.Unmarshal(d.Body, &data) == nil {
-							c = &Carrier{Name: event.Source, Logo: data.Logo}
-							airport.Carriers = append(airport.Carriers, c)
-							Broadcast(`{"type":"carrier","logo":"` + c.Logo + `"}`)
-							UpdateJobs()
-							fmt.Println("Connected carrier: ", c.Name)
-						}
-					} else {
-						c.UpdateJob()
-						fmt.Println("Reconnected carrier: ", c.Name)
-					}
-				case "Disconnect":
-					if c != nil {
-						c.Disconnect()
-					}
-				case "TransferAction":
-					var data struct {
-						ActionStatus string `json:"actionStatus"`
-						FromLocation string `json:"fromLocation"`
-						ToLocation   string `json:"toLocation"`
-						Offer        string `json:"offer"`
-					}
-					if json.Unmarshal(d.Body, &data) == nil {
-						switch data.ActionStatus {
-						case "ActiveActionStatus":
-							supplier := GetSupplier(data.FromLocation)
-							retailer := GetRetailer(data.ToLocation)
-							if supplier != nil && retailer != nil {
-								Broadcast(`{"type":"gocarrier","c":` + strconv.Itoa(c.GetPosition()) + `,"s":` + strconv.Itoa(supplier.GetPosition()) + `,"r":` + strconv.Itoa(retailer.GetPosition()) + `}`)
-								go func() {
-									time.Sleep(4000 * time.Millisecond)
-									data.ActionStatus = "ArrivedActionStatus"
-									body, _ := json.Marshal(data)
-									airport.Channel.Publish("airport", "", false, false, amqp.Publishing{
-										Headers: amqp.Table{
-											"cloudEvents:specversion": "0.3",
-											"cloudEvents:type":        "TransferAction",
-											"cloudEvents:source":      "Controller",
-											"cloudEvents:subject":     event.Subject,
-											"cloudEvents:id":          uuid.Must(uuid.NewV4()).String(),
-											"cloudEvents:time":        time.Now().Format(time.RFC3339Nano),
-										},
-										ContentType: "application/json",
-										Body:        body,
-									})
-								}()
-							}
-						case "CompletedActionStatus":
-							if retailer := GetRetailer(data.ToLocation); retailer != nil {
-								Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(retailer.GetPosition()) + `,"c":1}`)
-							}
-						}
-					}
-				}
-			}
-		}
-		airport.Mutex.Unlock()
 	}
+
+	if len(source) > 1 {
+		switch source[0] {
+		case "Retailer":
+			r := GetRetailer(event.Source)
+			switch event.Type {
+			case "Order":
+				var data struct {
+					OrderStatus string `json:"orderStatus"`
+					Offer       string `json:"offer"`
+				}
+				if r != nil && json.Unmarshal(event.Data, &data) == nil {
+					switch data.OrderStatus {
+					case "OrderReleased":
+						Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(r.GetPosition()) + `,"c":0}`)
+					case "OrderDelivered":
+						if len(r.Customers) > 0 {
+							if c := r.Customers[0]; c.State == CUSTOMER_ORDERED {
+								c.Satisfy(false)
+							}
+						}
+					}
+				}
+			case "Connection":
+				var data struct {
+					Organization string `json:"organization"`
+					Logo         string `json:"logo"`
+				}
+				if r == nil && json.Unmarshal(event.Data, &data) == nil {
+					r = &Retailer{Name: event.Source, Nickname: data.Organization, Logo: data.Logo}
+					airport.Retailers = append(airport.Retailers, r)
+					Broadcast(`{"type":"retailer","logo":"` + r.Logo + `"}`)
+					UpdateJobs()
+					fmt.Println("Connected retailer: ", r.Name)
+				}
+			case "Disconnect":
+				if r != nil {
+					r.Disconnect()
+				}
+			}
+		case "Supplier":
+			s := GetSupplier(event.Source)
+			switch event.Type {
+			case "Connection":
+				if s == nil {
+					var data struct {
+						Logo string `json:"logo"`
+					}
+
+					if json.Unmarshal(event.Data, &data) == nil {
+						s = &Supplier{Name: event.Source, Logo: data.Logo}
+						airport.Suppliers = append(airport.Suppliers, s)
+						Broadcast(`{"type":"supplier","logo":"` + s.Logo + `"}`)
+						UpdateJobs()
+						fmt.Println("Connected supplier: ", s.Name)
+					}
+				} else {
+					s.UpdateJob()
+					fmt.Println("Reconnected supplier: ", s.Name)
+				}
+			case "Disconnect":
+				if s != nil {
+					s.Disconnect()
+				}
+			}
+		case "Carrier":
+			c := GetCarrier(event.Source)
+			switch event.Type {
+			case "Connection":
+				if c == nil {
+					var data struct {
+						Logo string `json:"logo"`
+					}
+
+					if json.Unmarshal(event.Data, &data) == nil {
+						c = &Carrier{Name: event.Source, Logo: data.Logo}
+						airport.Carriers = append(airport.Carriers, c)
+						Broadcast(`{"type":"carrier","logo":"` + c.Logo + `"}`)
+						UpdateJobs()
+						fmt.Println("Connected carrier: ", c.Name)
+					}
+				} else {
+					c.UpdateJob()
+					fmt.Println("Reconnected carrier: ", c.Name)
+				}
+			case "Disconnect":
+				if c != nil {
+					c.Disconnect()
+				}
+			case "TransferAction":
+				var data struct {
+					ActionStatus string `json:"actionStatus"`
+					FromLocation string `json:"fromLocation"`
+					ToLocation   string `json:"toLocation"`
+					Offer        string `json:"offer"`
+				}
+				if json.Unmarshal(event.Data, &data) == nil {
+					switch data.ActionStatus {
+					case "ActiveActionStatus":
+						supplier := GetSupplier(data.FromLocation)
+						retailer := GetRetailer(data.ToLocation)
+						if supplier != nil && retailer != nil {
+							Broadcast(`{"type":"gocarrier","c":` + strconv.Itoa(c.GetPosition()) + `,"s":` + strconv.Itoa(supplier.GetPosition()) + `,"r":` + strconv.Itoa(retailer.GetPosition()) + `}`)
+							go func() {
+								time.Sleep(4000 * time.Millisecond)
+								data.ActionStatus = "ArrivedActionStatus"
+								body, _ := json.Marshal(data)
+								airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+									Type:    "TransferAction",
+									Source:  "Controller",
+									Subject: event.Subject,
+									Data:    body,
+								}))
+							}()
+						}
+					case "CompletedActionStatus":
+						if retailer := GetRetailer(data.ToLocation); retailer != nil {
+							Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(retailer.GetPosition()) + `,"c":1}`)
+						}
+					}
+				}
+			}
+		}
+	}
+	airport.Mutex.Unlock()
 }
 
 func main() {
