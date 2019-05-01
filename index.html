@@ -80,6 +80,9 @@ var options  = document.getElementById("options");
                 case "s":
                     Satisfied();
                     break;
+                case "c":
+                    Closed();
+                    break;
             }
         }
     };
@@ -149,11 +152,12 @@ function WaitForProcess() {
 }
 
 function Satisfied() {
-    if (order.length > 0) {
-        AddCaption("Thanks for playing!<br>Enjoy your " + order + " coffee!");
-    } else {
-        AddCaption("Your retailer went out of business! :(");
-    }
+    AddCaption("Thanks for playing!<br>Enjoy your " + order + " coffee!");
+    AddOption("Go again").onmousedown = location.reload.bind(location);
+}
+
+function Closed() {
+    AddCaption("Your retailer went out of business! :(");
     AddOption("Go again").onmousedown = location.reload.bind(location);
 }
 

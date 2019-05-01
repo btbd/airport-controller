@@ -131,6 +131,12 @@ const (
 	CUSTOMER_SATISFIED = iota
 )
 
+const (
+	SATISFY_OK    = iota
+	SATISFY_FORCE = iota
+	SATISFY_CLOSE = iota
+)
+
 type Customer struct {
 	Retailer *Retailer   `json:"-"`
 	State    int         `json:"-"`
@@ -163,23 +169,26 @@ func (customer *Customer) Order() {
 
 		airport.Mutex.Lock()
 		if customer.State == CUSTOMER_ORDERING {
-			customer.Satisfy(true)
+			customer.Satisfy(SATISFY_FORCE)
 		}
 		airport.Mutex.Unlock()
 	}()
 }
 
-func (customer *Customer) Satisfy(forced bool) {
+func (customer *Customer) Satisfy(kind int) {
 	ri, ci := customer.Position()
 	if ri == -1 || ci == -1 {
 		return
 	}
 
 	customer.State = CUSTOMER_SATISFIED
-	if forced {
-		customer.Send("f")
-	} else {
+	switch kind {
+	case SATISFY_OK:
 		customer.Send("s")
+	case SATISFY_FORCE:
+		customer.Send("f")
+	case SATISFY_CLOSE:
+		customer.Send("c")
 	}
 
 	var customers []*Customer
@@ -294,7 +303,7 @@ func (retailer *Retailer) Disconnect() {
 	i := retailer.GetPosition()
 	if i != -1 {
 		for _, c := range retailer.Customers {
-			c.Send("s")
+			c.Send("c")
 		}
 		airport.Retailers = append(airport.Retailers[:i], airport.Retailers[i+1:]...)
 		Broadcast(`{"type":"rmretailer","r":` + strconv.Itoa(i) + `}`)
@@ -776,7 +785,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 		if event.Type == "Reset" {
 			for _, r := range airport.Retailers {
 				for _, c := range r.Customers {
-					c.Satisfy(false)
+					c.Satisfy(SATISFY_CLOSE)
 				}
 
 				Broadcast(`{"type":"rmretailer","r":0}`)
@@ -931,7 +940,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 					case "OrderDelivered":
 						if len(r.Customers) > 0 {
 							if c := r.Customers[0]; c.State == CUSTOMER_ORDERED {
-								c.Satisfy(false)
+								c.Satisfy(SATISFY_OK)
 							}
 						}
 					}
