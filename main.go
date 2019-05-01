@@ -43,7 +43,7 @@ var TimeoutEvents = []TimeoutEvent{
 			"orderStatus": "OrderReleased",
 		},
 		Expect: EXPECT_PROVIDER,
-		Resend: false, // Don't resend since the retailer vanished
+		Resend: false,
 	},
 	{
 		Type:    "Order",
@@ -103,10 +103,10 @@ type CloudEvent struct {
 }
 
 const (
-	EXPECT_PROVIDER = iota // expect response from provider in data
-	EXPECT_SUPPLIER = iota // expect response from supplier that hanldes retailer (from source)
-	EXPECT_RETAILER = iota // expect response from retailer (from tolocation)
-	EXPECT_CARRIER  = iota // expect response from carrier that handles retailer and supplier (from tolocation and fromlocation)
+	EXPECT_PROVIDER = iota // Expect response from provider in data
+	EXPECT_SUPPLIER = iota // Expect response from supplier that hanldes retailer (from source)
+	EXPECT_RETAILER = iota // Expect response from retailer (from toLocation)
+	EXPECT_CARRIER  = iota // Expect response from carrier that handles retailer and supplier (from toLocation and fromLocation)
 )
 
 type TimeoutEvent struct {
@@ -688,7 +688,7 @@ func PublishReset() {
 		Source: "Controller",
 	}))
 	if err != nil {
-		log.Printf("error: %s\n", err)
+		log.Printf("Error on publishing reset: %s\n", err)
 	}
 }
 
@@ -702,7 +702,7 @@ func PublishDisconnect(name string) {
 }
 
 func Listen(queueURL string) {
-	// amqp://user:pass@asdads/
+	// Format: amqp://user:pass@addr/
 	exchange := "/exchange/amq.fanout"
 	addr, err := url.Parse(queueURL)
 	if err != nil {
@@ -712,10 +712,9 @@ func Listen(queueURL string) {
 	password, _ := user.Password()
 	addr.User = nil
 
-	for { // never stop!
+	for {
 		log.Printf("Dialing: %s", addr)
-		client, err := amqp.Dial(addr.String(),
-			amqp.ConnSASLPlain(user.Username(), password))
+		client, err := amqp.Dial(addr.String(), amqp.ConnSASLPlain(user.Username(), password))
 		if err != nil {
 			log.Println(err)
 			time.Sleep(2 * time.Second)
@@ -739,10 +738,7 @@ func Listen(queueURL string) {
 		}
 
 		log.Printf("Creating a new receiver...\n")
-		receiver, err := session.NewReceiver(
-			amqp.LinkSourceAddress(exchange),
-			amqp.LinkCredit(10),
-		)
+		receiver, err := session.NewReceiver(amqp.LinkSourceAddress(exchange), amqp.LinkCredit(10))
 		if err != nil {
 			log.Println(err)
 			continue
@@ -906,7 +902,6 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 							fmt.Println("Disconnected due to: " + event.ID)
 							disconnect()
 							if t.Resend {
-								// TODO: check this
 								airport.Sender.Send(airport.Context, m)
 							}
 							delete(ates, event.ID)

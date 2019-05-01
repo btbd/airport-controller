@@ -412,6 +412,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
             var c = r.customers[e];
             c.time += 0.3;
             c.width = c.height = canvas.height * 0.05;
+            if (c.y - c.height / 2 >= canvas.height) continue;
 
             if (e == 0 && c.satisfied) {
                 c.speed *= (Math.random() > 0.5 ? 1 : -1) * (0.75 + Math.random() * 0.5);
