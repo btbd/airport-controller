@@ -191,6 +191,8 @@ func (customer *Customer) Satisfy(kind int) {
 		customer.Send("c")
 	}
 
+	Broadcast(`{"type":"satisfied","r":` + strconv.Itoa(ri) + `,"c":` + strconv.Itoa(ci) + `}`)
+
 	var customers []*Customer
 	if c := customer.Retailer.Customers; len(c) > 1 {
 		customers = c[1:]
@@ -200,7 +202,6 @@ func (customer *Customer) Satisfy(kind int) {
 	}
 
 	customer.Retailer.Customers = customers
-	Broadcast(`{"type":"satisfied","r":` + strconv.Itoa(ri) + `,"c":` + strconv.Itoa(ci) + `}`)
 }
 
 func (customer *Customer) MarshalJSON() ([]byte, error) {
@@ -531,24 +532,21 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 			case 'j':
 				airport.Mutex.RLock()
 				ri, ci := customer.Position()
-				airport.Mutex.RUnlock()
 				Broadcast(`{"type":"jump","r":` + strconv.Itoa(ri) + `,"c":` + strconv.Itoa(ci) + `}`)
+				airport.Mutex.RUnlock()
 			case 'o':
 				if len(msg) > 1 {
-					i, err := strconv.Atoi(msg[1:])
-					if err == nil {
-						airport.Mutex.Lock()
-						if customer.State == CUSTOMER_ORDERING {
-							customer.State = CUSTOMER_ORDERED
-							airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
-								Type:    "Order",
-								Source:  "Passenger",
-								Subject: "Customer." + customer.Id,
-								Data:    []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
-							}))
-						}
-						airport.Mutex.Unlock()
+					airport.Mutex.Lock()
+					if i, err := strconv.Atoi(msg[1:]); err == nil && customer.State == CUSTOMER_ORDERING {
+						customer.State = CUSTOMER_ORDERED
+						airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
+							Type:    "Order",
+							Source:  "Passenger",
+							Subject: "Customer." + customer.Id,
+							Data:    []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
+						}))
 					}
+					airport.Mutex.Unlock()
 				}
 			}
 		}
