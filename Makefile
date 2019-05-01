@@ -13,5 +13,9 @@ push: .push
 	docker push $(IMAGE)
 	touch .push
 
+run: server
+	./server -p 93 -u amqp://$(USER):$(PASSWORD)@srcdog.com:9999/
+	# ./server -p 93 -u amqp://$(USER):$(PASSWORD)@localhost:5672/
+
 clean:
 	rm -f server .push
