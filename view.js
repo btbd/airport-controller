@@ -133,7 +133,7 @@ var suppliers = [],
                                         elEvent.classList.remove("hide");
                                         e.stopPropagation();
                                     };
-                                    for (var i = 50; i < elFids.rows.length; ++i) elFids.deleteRow(50);
+                                    for (var i = elFids.rows.length; i > 50; --i) elFids.deleteRow(50);
                                     break;
                                 case "customer":
                                     new Customer(retailers[d.r]);
