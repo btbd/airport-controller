@@ -127,7 +127,12 @@ var suppliers = [],
                                     if (h < 10) h = "0" + h;
                                     var m = time.getMinutes();
                                     if (m < 10) m = "0" + m;
-                                    row.innerHTML = "<td>" + h + ":" + m + "</td><td>" + event.source.split(".")[0] + "</td><td>" + event.type + "</td>";
+									var tt = event.type
+									var ii = tt.lastIndexOf(".")
+									if (ii >= 0) {
+										tt = tt.substring(ii+1)
+									}
+                                    row.innerHTML = "<td>" + h + ":" + m + "</td><td>" + event.source.split(".")[0] + "</td><td>" + tt + "</td>";
                                     row.onclick = function(e) {
                                         elEvent.children[0].innerText = JSON.stringify(event, null, 4);
                                         elEvent.classList.remove("hide");
