@@ -545,6 +545,15 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 							Subject: "Customer." + customer.Id,
 							Data:    []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
 						}))
+
+						go func() {
+							time.Sleep(time.Second * 10)
+							airport.Mutex.Lock()
+							if customer.State != CUSTOMER_SATISFIED {
+								customer.Satisfy(SATISFY_OK)
+							}
+							airport.Mutex.Unlock()
+						}()
 					}
 					airport.Mutex.Unlock()
 				}
@@ -937,7 +946,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 						Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(r.GetPosition()) + `,"c":0}`)
 					case "OrderDelivered":
 						if len(r.Customers) > 0 {
-							if c := r.Customers[0]; c.State == CUSTOMER_ORDERED {
+							if c := r.Customers[0]; c.State == CUSTOMER_ORDERED && ("Customer."+c.Id) == event.Subject {
 								c.Satisfy(SATISFY_OK)
 							}
 						}
