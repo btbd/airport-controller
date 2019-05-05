@@ -47,7 +47,7 @@ var TimeoutEvents = []TimeoutEvent{
 	},
 	{
 		Type:    "Order.OrderStatus.OrderReleased",
-		Source:  "Order.OrderStatus.OrderDelivered",
+		Source:  "Retailer",
 		Timeout: 10 * time.Second,
 		Data: map[string]interface{}{
 			"orderStatus": "OrderReleased",
