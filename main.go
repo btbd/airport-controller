@@ -36,7 +36,7 @@ var ates = map[string]*ActiveTimeoutEvent{}
 var Sizes = []string{"small", "medium", "large"}
 var TimeoutEvents = []TimeoutEvent{
 	{
-		Type:    "Order",
+		Type:    "Order.OrderStatus.OrderReleased",
 		Source:  "Passenger",
 		Timeout: 10 * time.Second,
 		Data: map[string]interface{}{
@@ -46,7 +46,7 @@ var TimeoutEvents = []TimeoutEvent{
 		Resend: false,
 	},
 	{
-		Type:    "Order",
+		Type:    "Order.OrderStatus.OrderReleased",
 		Source:  "Retailer",
 		Timeout: 10 * time.Second,
 		Data: map[string]interface{}{
@@ -56,7 +56,7 @@ var TimeoutEvents = []TimeoutEvent{
 		Resend: true,
 	},
 	{
-		Type:    "TransferAction",
+		Type:    "TransferAction.ActionStatus.PotentialActionStatus",
 		Source:  "Supplier",
 		Timeout: 10 * time.Second,
 		Data: map[string]interface{}{
@@ -66,7 +66,7 @@ var TimeoutEvents = []TimeoutEvent{
 		Resend: true,
 	},
 	{
-		Type:    "TransferAction",
+		Type:    "TransferAction.ActionStatus.ArrivedActionStatus",
 		Source:  "Controller",
 		Timeout: 10 * time.Second,
 		Data: map[string]interface{}{
@@ -76,7 +76,7 @@ var TimeoutEvents = []TimeoutEvent{
 		Resend: true,
 	},
 	{
-		Type:    "TransferAction",
+		Type:    "TransferAction.ActionStatus.CompletedActionStatus",
 		Source:  "Carrier",
 		Timeout: 10 * time.Second,
 		Data: map[string]interface{}{
@@ -540,7 +540,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 					if i, err := strconv.Atoi(msg[1:]); err == nil && customer.State == CUSTOMER_ORDERING {
 						customer.State = CUSTOMER_ORDERED
 						airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
-							Type:    "Order",
+							Type:    "Order.OrderStatus.OrderReleased",
 							Source:  "Passenger",
 							Subject: "Customer." + customer.Id,
 							Data:    []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
@@ -935,7 +935,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 		case "Retailer":
 			r := GetRetailer(event.Source)
 			switch event.Type {
-			case "Order":
+			case "Order.OrderStatus.OrderReleased", "Order.OrderStatus.OrderDelivered":
 				var data struct {
 					OrderStatus string `json:"orderStatus"`
 					Offer       string `json:"offer"`
@@ -1018,7 +1018,8 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 				if c != nil {
 					c.Disconnect()
 				}
-			case "TransferAction":
+			case "TransferAction.ActionStatus.ActiveActionStatus",
+				"TransferAction.ActionStatus.CompletedActionStatus":
 				var data struct {
 					ActionStatus string `json:"actionStatus"`
 					FromLocation string `json:"fromLocation"`
@@ -1037,7 +1038,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 								data.ActionStatus = "ArrivedActionStatus"
 								body, _ := json.Marshal(data)
 								airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
-									Type:    "TransferAction",
+									Type:    "TransferAction.ActionStatus.ArrivedActionStatus",
 									Source:  "Controller",
 									Subject: event.Subject,
 									Data:    body,
