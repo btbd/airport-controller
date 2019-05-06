@@ -139,7 +139,7 @@ const (
 
 type Customer struct {
 	Retailer *Retailer   `json:"-"`
-	State    int         `json:"-"`
+	State    int         `json:"state"`
 	Id       string      `json:"-"`
 	Client   chan string `json:"-"`
 }
@@ -220,7 +220,7 @@ func (sj *SupplierJob) MarshalJSON() ([]byte, error) {
 type Supplier struct {
 	Name string         `json:"name"`
 	Logo string         `json:"logo"`
-	Jobs []*SupplierJob `json:"-"`
+	Jobs []*SupplierJob `json:"jobs"`
 }
 
 func (supplier *Supplier) GetPosition() int {
@@ -329,7 +329,7 @@ func (cj *CarrierJob) MarshalJSON() ([]byte, error) {
 type Carrier struct {
 	Name string        `json:"name"`
 	Logo string        `json:"logo"`
-	Jobs []*CarrierJob `json:"-"`
+	Jobs []*CarrierJob `json:"jobs"`
 }
 
 func (carrier *Carrier) Disconnect() {
