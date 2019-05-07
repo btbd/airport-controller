@@ -499,9 +499,9 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			case 'r':
+				airport.Mutex.Lock()
 				if (customer.Id == "" || customer.State == CUSTOMER_SATISFIED) && len(msg) > 1 {
 					i, err := strconv.Atoi(msg[1:])
-					airport.Mutex.Lock()
 					if err == nil && i >= 0 && i < len(airport.Retailers) {
 						retailer := airport.Retailers[i]
 
@@ -527,8 +527,8 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 
 						Broadcast(`{"type":"customer","r":` + strconv.Itoa(i) + `}`)
 					}
-					airport.Mutex.Unlock()
 				}
+				airport.Mutex.Unlock()
 			case 'j':
 				airport.Mutex.RLock()
 				ri, ci := customer.Position()
