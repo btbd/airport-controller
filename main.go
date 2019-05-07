@@ -446,7 +446,9 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 
 	client := make(chan string)
-	customer := &Customer{}
+	customer := &Customer{
+		State: CUSTOMER_WALKING,
+	}
 
 	go func() {
 		for {
@@ -499,7 +501,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			case 'r':
-				if len(msg) > 1 {
+				if (customer.State == CUSTOMER_WALKING || customer.State == CUSTOMER_SATISFIED) && len(msg) > 1 {
 					i, err := strconv.Atoi(msg[1:])
 					airport.Mutex.Lock()
 					if err == nil && i >= 0 && i < len(airport.Retailers) {
