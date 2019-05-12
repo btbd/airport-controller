@@ -444,7 +444,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                     } else {
                         c.x = ((tx - c.sx) * t / 2) + c.sx;
                         c.y = ((r.y + r.height - c.sy) * t / 2) + c.sy;
-                        if (c.y > ty) {
+                        if (c.y < ty) {
                             c.y = ty;
                         }
                     }
