@@ -447,7 +447,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 
 	client := make(chan string)
-	customer := &Customer{}
+	var customer *Customer
 
 	go func() {
 		for {
@@ -494,19 +494,19 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 						}
 						airport.Mutex.Unlock()
 
-						if customer.Id == "" {
+						if customer == nil {
 							c.WriteMessage(websocket.TextMessage, []byte("s"))
 						}
 					}
 				}
 			case 'r':
 				airport.Mutex.Lock()
-				if (customer.Id == "" || customer.State == CUSTOMER_SATISFIED) && len(msg) > 1 {
+				if (customer == nil || customer.State == CUSTOMER_SATISFIED) && len(msg) > 1 {
 					i, err := strconv.Atoi(msg[1:])
 					if err == nil && i >= 0 && i < len(airport.Retailers) {
 						retailer := airport.Retailers[i]
 
-						*customer = Customer{
+						customer = &Customer{
 							Retailer: retailer,
 							State:    CUSTOMER_WALKING,
 							Id:       uuid.Must(uuid.NewV4()).String(),

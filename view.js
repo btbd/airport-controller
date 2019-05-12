@@ -119,7 +119,7 @@ var suppliers = [],
                         var d = JSON.parse(e.data);
                         if (d) {
                             switch (d.type) {
-                                case "event":
+                                case "event": {
                                     var row = elFids.insertRow(1);
                                     var event = d.event;
                                     var time = new Date(event.time);
@@ -136,20 +136,27 @@ var suppliers = [],
                                     };
                                     for (var i = elFids.rows.length; i > 50; --i) elFids.deleteRow(50);
                                     break;
+                                }
                                 case "customer":
                                     new Customer(retailers[d.r]);
                                     break;
-                                case "jump":
+                                case "jump": {
                                     var c = retailers[d.r].customers[d.c];
                                     if (c.z === 0) retailers[d.r].customers[d.c].vz = canvas.height * 0.0075;
                                     break;
-                                case "satisfied":
-                                    retailers[d.r].customers[d.c].satisfied = true;
+                                }
+                                case "satisfied": {
+                                    var r = retailers[d.r];
+                                    var c =  r.customers.splice(d.c, 1)[0];
+                                    c.speed *= (Math.random() > 0.5 ? 1 : -1) * (0.75 + Math.random() * 0.5);
+                                    c.start = Date.now();
+                                    customers.push(c);
                                     break;
+                                }
                                 case "retailer":
                                     retailers.push(new Retailer(d.logo));
                                     break;
-                                case "rmretailer":
+                                case "rmretailer": {
                                     var r = retailers.splice(d.r, 1)[0];
                                     for (var i = 0; i < r.customers.length; ++i) {
                                         var c = r.customers[i];
@@ -158,6 +165,7 @@ var suppliers = [],
                                         customers.push(c);
                                     }
                                     break;
+                                }
                                 case "supplier":
                                     suppliers.push(new Supplier(d.logo));
                                     break;
@@ -414,22 +422,16 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
             c.time += 0.3;
             c.width = c.height = canvas.height * 0.05;
 
-            if (e == 0 && c.satisfied) {
-                c.speed *= (Math.random() > 0.5 ? 1 : -1) * (0.75 + Math.random() * 0.5);
-                c.start = Date.now();
-                customers.push(c);
-                r.customers.splice(e--, 1);
-            } else {
-                var tx = r.x;
-                var ty = r.y + r.height + (e * c.height / 2);
-                var dx = tx - c.x;
-                var dy = ty - c.y;
-                var d = Math.sqrt(dx * dx + dy * dy);
-                var frame = 1 + (Math.floor(c.time) % 8);
-                if (d > 1) {
-                    if (d < canvas.height * 0.03) {
-                        frame = 0;
-                        var s = c.speed * (canvas.height / 1080) * (d / 25);
+            var tx = r.x;
+            var ty = r.y + r.height + (e * c.height / 2);
+            var dx = tx - c.x;
+            var dy = ty - c.y;
+            var d = Math.sqrt(dx * dx + dy * dy);
+            var frame = 1 + (Math.floor(c.time) % 8);
+            if (d > 1) {
+                if (d < canvas.height * 0.03) {
+                    frame = 0;
+                    var s = c.speed * (canvas.height / 1080) * (d / 25);
 
                         var a = Math.atan2(dy, dx + (-10 + 10 * Math.random()));
                         c.x += Math.cos(a) * s;
@@ -456,7 +458,6 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                 } else {
                     frame = 0;
                 }
-            }
 
             if (c.y - c.height / 2 < canvas.height) {
                 drawSprite(sprite.person, c.x - c.width / 2, (c.y - c.z) - c.height / 2, c.width, c.height, frame, 9, 0, 4);
