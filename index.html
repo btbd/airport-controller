@@ -48,10 +48,11 @@ html, body {
         <table id="options"></table>
         <script>
 (function() {
-var ws       = null;
-var id       = "";
-var order    = "";
-var options  = document.getElementById("options");
+var ws      = null;
+var id      = "";
+var order   = "";
+var options = document.getElementById("options");
+var master  = false;
 
 (function Connect() {
 	ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + window.location.pathname + "ws_customer")
@@ -99,7 +100,9 @@ function Update() {
             var data = JSON.parse(x.responseText);
             if (data) {
                 var t = setTimeout(Update, 500);
-                if (data.retailers && data.retailers.length > 0) {
+                if (data.disabled && !master) {
+                    AddCaption("Waiting for the demo to start...");
+                } else if (data.retailers && data.retailers.length > 0) {
                     AddCaption("Pick a shop");
                     for (var i = 0; i < data.retailers.length; ++i) {
                         var r = data.retailers[i];
@@ -198,6 +201,17 @@ function HttpGet(url, state) {
 window.addEventListener("touchstart", function(e) {
     e.target.onmousedown();
 }, true);
+
+window.onkeydown = function(e) {
+    if (e.crtlKey && e.altKey) {
+        if (e.which == 219) {
+            master = true;
+            ws.send("e");
+        } else if (e.which == 221) {
+            ws.send("d");
+        }
+    }
+};
 })();
         </script>
     </body>

@@ -20,6 +20,7 @@ import (
 )
 
 var airport struct {
+	Disabled  bool            `json:"disabled"`
 	Suppliers []*Supplier     `json:"suppliers"`
 	Retailers []*Retailer     `json:"retailers"`
 	Carriers  []*Carrier      `json:"carriers"`
@@ -557,6 +558,19 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 					}
 					airport.Mutex.Unlock()
 				}
+			case 'e':
+				airport.Mutex.Lock()
+				airport.Disabled = true
+				for _, r := range airport.Retailers {
+					for _, c := range r.Customers {
+						c.Satisfy(SATISFY_CLOSE)
+					}
+				}
+				airport.Mutex.Unlock()
+			case 'd':
+				airport.Mutex.Lock()
+				airport.Disabled = false
+				airport.Mutex.Unlock()
 			}
 		}
 	}
