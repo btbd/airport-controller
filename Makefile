@@ -1,11 +1,12 @@
 all: server
 
 IMAGE=duglin/airport-controller
+PASSWORD?=$(USER)
 
 server: *.go
 	go fmt
 	go build -ldflags "-w -extldflags -static" -tags netgo \
-		-installsuffix netgo -o server
+		-installsuffix netgo -o server main.go
 
 push: .push
 .push: server *html *js Dockerfile
