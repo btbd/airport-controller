@@ -19,16 +19,22 @@ function Supplier(logo) {
     this.logo.src = logo;
 }
 
+function Truck(supplier, retailer) {
+    this.start = Date.now();
+    this.x = 0;
+    this.y = 0;
+    this.supplier = supplier;
+    this.retailer = retailer;
+}
+
 function Carrier(logo) {
-    this.start = 0;
-    this.supplier = undefined;
-    this.retailer = undefined;
     this.width = 0;
     this.height = 0;
     this.x = 0;
     this.y = 0;
     this.logo = new Image();
     this.logo.src = logo;
+    this.trucks = [];
 }
 
 function Retailer(logo) {
@@ -75,12 +81,12 @@ ctx.drawImage = function( ){
 };
 
 var suppliers = [],
-    carriers = [],
+    carriers  = [],
     retailers = [],
     customers = [];
 
 (function connect() {
-    suppliers.length = carriers.length = retailers.length = customers.length = 0;
+    suppliers.length = carriers.length = retailers.length = customers.length;
 
     httpGet("./data", function(x) {
         if (x.readyState === 4) {
@@ -184,9 +190,7 @@ var suppliers = [],
                                     carriers.splice(d.c, 1);
                                     break;
                                 case "gocarrier":
-                                    carriers[d.c].supplier = suppliers[d.s];
-                                    carriers[d.c].retailer = retailers[d.r];
-                                    carriers[d.c].start = Date.now();
+                                    carriers[d.c].trucks.push(new Truck(suppliers[d.s], retailers[d.r]));
                                     break;
                                 case "small":
                                     retailers[d.r].small = d.c;
@@ -285,66 +289,70 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
         c.width = c.height = canvas.width * 0.06;
         var px = canvas.width - c.width / 1.5;
         var py = canvas.height / 3 + (i * c.height) - ((carriers.length) * c.height / 2);
-        var cx = px - c.width / 1.5;
-        var cy = py - c.height / 2;
+        c.x = px - c.width / 1.5;
+        c.y = py - c.height / 2;
         ctx.fillStyle = "#3a3a39";
-        ctx.fillRect(cx, cy, c.width * 2, c.height);
+        ctx.fillRect(c.x, c.y, c.width * 2, c.height);
         ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(canvas.width, cy);
+        ctx.moveTo(c.x, c.y);
+        ctx.lineTo(canvas.width, c.y);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(cx, py + c.height / 2);
+        ctx.moveTo(c.x, py + c.height / 2);
         ctx.lineTo(canvas.width, py + c.height / 2);
         ctx.stroke();
 
-        if (c.supplier && c.retailer) {
-            var t = (Date.now() - c.start) / 1000;
-            var x = c.x;
-            var y = c.y;
-            var o = c.width / 10;
+        drawLogo(c.logo, px, py, c.height * 0.25);
 
-            ctx.save();
-            ctx.rect(0, c.supplier.y + c.supplier.height, canvas.width, canvas.height);
-            ctx.clip();
-            if (t < 2) {
-                t /= 2;
-                c.x = c.supplier.x + (1 - t) * (px - c.supplier.x);
-                c.y = py + Math.pow(t, 9) * (c.supplier.y - py);
-                drawImage(sprite.truck, c.x, c.y, c.width, c.height, Math.atan2(y - c.y, x - c.x));
-            } else if (t >= 2 && t < 4) {
-                t -= 2;
-                t /= 2;
-                var dx = c.retailer.x - c.supplier.x;
-                var dy = c.retailer.y - c.supplier.y + (c.height / 2);
+        for (var e = 0; e < c.trucks.length; ++e) {
+            var t = c.trucks[e];
+            if (t.supplier && t.retailer) {
+                var time = (Date.now() - t.start) / 1000;
+                var x = t.x;
+                var y = t.y;
+                var o = c.width / 10;
 
-                c.x = c.supplier.x + (Math.sin(Math.PI * t - Math.PI / 2) / 2 + 1 / 2) * dx;
-                if (Math.abs(dx) < canvas.width / 8) {
-                    c.y = c.supplier.y + c.supplier.height / 2 - c.height / 2 + (Math.sin(Math.PI * t - Math.PI / 2) / 2 + 1 / 2) * dy;
+                ctx.save();
+                ctx.rect(0, t.supplier.y + t.supplier.height, canvas.width, canvas.height);
+                ctx.clip();
+                if (time < 2) {
+                    time /= 2;
+                    t.x = t.supplier.x + (1 - time) * (canvas.width - t.supplier.x);
+                    t.y = py + Math.pow(time, 9) * (t.supplier.y - py);
+                    drawImage(sprite.truck, t.x, t.y, c.width, c.height, Math.atan2(y - t.y, x - t.x));
+                } else if (time >= 2 && time < 4) {
+                    time -= 2;
+                    time /= 2;
+                    var dx = t.retailer.x - t.supplier.x;
+                    var dy = t.retailer.y - t.supplier.y + (c.height / 2);
+
+                    t.x = t.supplier.x + (Math.sin(Math.PI * time - Math.PI / 2) / 2 + 1 / 2) * dx;
+                    if (Math.abs(dx) < canvas.width / 8) {
+                        t.y = t.supplier.y + t.supplier.height / 2 - c.height / 2 + (Math.sin(Math.PI * time - Math.PI / 2) / 2 + 1 / 2) * dy;
+                    } else {
+                        t.y = t.supplier.y + t.supplier.height / 2 - c.height / 2 + (Math.pow(Math.sin(Math.PI * time - Math.PI / 2), 5) / 2 + 1 / 2) * dy;
+                    }
+                    drawImage(sprite.truck, t.x, t.y, c.width, c.height, Math.atan2(y - t.y, x - t.x));
+                } else if (time < 6) {
+                    time -= 4;
+                    time /= 2;
+                    time = 1 - time;
+                    t.x = t.retailer.x + (1 - time) * (canvas.width - t.retailer.x);
+                    t.y = py + Math.pow(time, 5) * (t.retailer.y - py);
+                    drawImage(sprite.truck, t.x, t.y, c.width, c.height, Math.atan2(t.y - y, t.x - x));
+                    o = -o;
                 } else {
-                    c.y = c.supplier.y + c.supplier.height / 2 - c.height / 2 + (Math.pow(Math.sin(Math.PI * t - Math.PI / 2), 5) / 2 + 1 / 2) * dy;
+                    drawImage(sprite.truck, t.x = canvas.width, t.y = py, c.width, c.height, 0);
+                    o = 0;
+                    t.supplier = t.retailer = undefined;
                 }
-                drawImage(sprite.truck, c.x, c.y, c.width, c.height, Math.atan2(y - c.y, x - c.x));
-            } else if (t < 6) {
-                t -= 4;
-                t /= 2;
-                t = 1 - t;
-                c.x = c.retailer.x + (1 - t) * (px - c.retailer.x);
-                c.y = py + Math.pow(t, 5) * (c.retailer.y - py);
-                drawImage(sprite.truck, c.x, c.y, c.width, c.height, Math.atan2(c.y - y, c.x - x));
-                o = -o;
-            } else {
-                c.supplier = c.retailer = undefined;
-                drawImage(sprite.truck, c.x = px, c.y = py, c.width, c.height, 0);
-                o = 0;
-            }
 
-            var a = Math.atan2(y - c.y, x - c.x);
-            drawLogo(c.logo, c.x + o * Math.cos(a), c.y + o * Math.sin(a), c.height * 0.2);
-            ctx.restore();
-        } else {
-            drawImage(sprite.truck, c.x = px, c.y = py, c.width, c.height, 0);
-            drawLogo(c.logo, c.x + c.width / 10, c.y, c.height * 0.2);
+                var a = Math.atan2(y - t.y, x - t.x);
+                drawLogo(c.logo, t.x + o * Math.cos(a), t.y + o * Math.sin(a), c.height * 0.2);
+                ctx.restore();
+            } else {
+                c.trucks.splice(e--, 1);
+            }
         }
     }
 
@@ -444,13 +452,14 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                     } else {
                         c.x = ((tx - c.sx) * t / 2) + c.sx;
                         c.y = ((r.y + r.height - c.sy) * t / 2) + c.sy;
-                        if (c.y < ty) {
-                            c.y = ty;
-                        }
                     }
                 }
             } else {
                 frame = 0;
+            }
+
+            if (c.y < ty) {
+                c.y = ty;
             }
 
             c.z += c.vz;
