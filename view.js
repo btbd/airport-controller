@@ -317,7 +317,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                 ctx.clip();
                 if (time < 2) {
                     time /= 2;
-                    t.x = t.supplier.x + (1 - time) * (canvas.width - t.supplier.x);
+                    t.x = t.supplier.x + (1 - time) * ((canvas.width + c.width / 2) - t.supplier.x);
                     t.y = py + Math.pow(time, 9) * (t.supplier.y - py);
                     drawImage(sprite.truck, t.x, t.y, c.width, c.height, Math.atan2(y - t.y, x - t.x));
                 } else if (time >= 2 && time < 4) {
@@ -337,12 +337,12 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                     time -= 4;
                     time /= 2;
                     time = 1 - time;
-                    t.x = t.retailer.x + (1 - time) * (canvas.width - t.retailer.x);
+                    t.x = t.retailer.x + (1 - time) * ((canvas.width + c.width / 2) - t.retailer.x);
                     t.y = py + Math.pow(time, 5) * (t.retailer.y - py);
                     drawImage(sprite.truck, t.x, t.y, c.width, c.height, Math.atan2(t.y - y, t.x - x));
                     o = -o;
                 } else {
-                    drawImage(sprite.truck, t.x = canvas.width, t.y = py, c.width, c.height, 0);
+                    drawImage(sprite.truck, t.x = (canvas.width + c.width / 2), t.y = py, c.width, c.height, 0);
                     o = 0;
                     t.supplier = t.retailer = undefined;
                 }
