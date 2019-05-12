@@ -536,7 +536,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 				Broadcast(`{"type":"jump","r":` + strconv.Itoa(ri) + `,"c":` + strconv.Itoa(ci) + `}`)
 				airport.Mutex.RUnlock()
 			case 'o':
-				if len(msg) > 1 {
+				if customer != nil && len(msg) > 1 {
 					airport.Mutex.Lock()
 					if i, err := strconv.Atoi(msg[1:]); err == nil && customer.State == CUSTOMER_ORDERING {
 						customer.State = CUSTOMER_ORDERED

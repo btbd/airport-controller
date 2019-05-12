@@ -433,31 +433,31 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                     frame = 0;
                     var s = c.speed * (canvas.height / 1080) * (d / 25);
 
-                        var a = Math.atan2(dy, dx + (-10 + 10 * Math.random()));
-                        c.x += Math.cos(a) * s;
-                        c.y += Math.sin(a) * s;
+                    var a = Math.atan2(dy, dx + (-10 + 10 * Math.random()));
+                    c.x += Math.cos(a) * s;
+                    c.y += Math.sin(a) * s;
+                } else {
+                    var t = (Date.now() - c.start) / 1000;
+                    if (t >= 2) {
+                        c.x = tx;
+                        c.y = ty;
                     } else {
-                        var t = (Date.now() - c.start) / 1000;
-                        if (t >= 2) {
-                            c.x = tx;
-                            c.y = ty;
-                        } else {
-                            c.x = ((tx - c.sx) * t / 2) + c.sx;
-                            c.y = ((ty - c.sy) * t / 2) + c.sy;
-                        }
+                        c.x = ((tx - c.sx) * t / 2) + c.sx;
+                        c.y = ((ty - c.sy) * t / 2) + c.sy;
                     }
-                } else {
-                    frame = 0;
                 }
+            } else {
+                frame = 0;
+            }
 
-                c.z += c.vz;
-                c.vz -= 1;
-                if (c.z <= 0) {
-                    c.z = 0;
-                    c.vz = 0;
-                } else {
-                    frame = 0;
-                }
+            c.z += c.vz;
+            c.vz -= 1;
+            if (c.z <= 0) {
+                c.z = 0;
+                c.vz = 0;
+            } else {
+                frame = 0;
+            }
 
             if (c.y - c.height / 2 < canvas.height) {
                 drawSprite(sprite.person, c.x - c.width / 2, (c.y - c.z) - c.height / 2, c.width, c.height, frame, 9, 0, 4);
