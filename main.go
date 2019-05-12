@@ -516,7 +516,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 						customer.Send("i" + customer.Id)
 						retailer.Customers = append(retailer.Customers, customer)
 
-						go func() {
+						go func(customer *Customer) {
 							time.Sleep(time.Millisecond * 2000)
 							airport.Mutex.Lock()
 							customer.State = CUSTOMER_INLINE
@@ -524,7 +524,7 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 								customer.Order()
 							}
 							airport.Mutex.Unlock()
-						}()
+						}(customer)
 
 						Broadcast(`{"type":"customer","r":` + strconv.Itoa(i) + `}`)
 					}
@@ -547,14 +547,14 @@ func HandleCustomer(w http.ResponseWriter, r *http.Request) {
 							Data:    []byte(`{"provider":"` + customer.Retailer.Name + `","orderStatus":"OrderReleased","customer":"Customer.` + customer.Id + `","offer":"` + Sizes[i] + `"}`),
 						}))
 
-						go func() {
+						go func(customer *Customer) {
 							time.Sleep(time.Second * 10)
 							airport.Mutex.Lock()
 							if customer.State != CUSTOMER_SATISFIED {
 								customer.Satisfy(SATISFY_OK)
 							}
 							airport.Mutex.Unlock()
-						}()
+						}(customer)
 					}
 					airport.Mutex.Unlock()
 				}
