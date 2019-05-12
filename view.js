@@ -443,7 +443,10 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
                         c.y = ty;
                     } else {
                         c.x = ((tx - c.sx) * t / 2) + c.sx;
-                        c.y = ((ty - c.sy) * t / 2) + c.sy;
+                        c.y = ((r.y + r.height - c.sy) * t / 2) + c.sy;
+                        if (c.y > ty) {
+                            c.y = ty;
+                        }
                     }
                 }
             } else {
