@@ -203,13 +203,11 @@ window.addEventListener("touchstart", function(e) {
 }, true);
 
 window.onkeydown = function(e) {
-    if (e.crtlKey && e.altKey) {
-        if (e.which == 219) {
-            master = true;
-            ws.send("e");
-        } else if (e.which == 221) {
-            ws.send("d");
-        }
+    if (e.which == 219) {
+        master = true;
+        ws.send("e");
+    } else if (e.which == 221) {
+        ws.send("d");
     }
 };
 })();
