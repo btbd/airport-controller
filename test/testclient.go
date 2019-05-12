@@ -73,8 +73,8 @@ func main() {
 	var url string
 	var data string
 	var clients int
-	flag.StringVar(&url, "u", "", "websocket url")
-	flag.StringVar(&data, "d", "", "data url")
+	flag.StringVar(&url, "u", "ws://srcdog.com/airport/ws_customer", "websocket url")
+	flag.StringVar(&data, "d", "http://srcdog.com/airport/data", "data url")
 	flag.IntVar(&clients, "c", 1, "clients")
 	flag.Parse()
 
@@ -83,7 +83,7 @@ func main() {
 	}
 
 	if data == "" {
-		log.Fatalln("Data url (-u) is required")
+		log.Fatalln("Data url (-d) is required")
 	}
 
 	var wg sync.WaitGroup

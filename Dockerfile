@@ -4,7 +4,7 @@ COPY *go /airport/
 WORKDIR /airport
 RUN go get -d .
 RUN go build -ldflags "-w -extldflags -static" -tags netgo \
-		-installsuffix netgo -o /server
+		-installsuffix netgo -o /server main.go
 
 FROM ubuntu
 RUN mkdir -p /airport/images
