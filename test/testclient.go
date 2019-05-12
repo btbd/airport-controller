@@ -58,6 +58,7 @@ func SimulateClient(wg *sync.WaitGroup, url string, data string) {
 
 			switch string(msg) {
 			case "o":
+				time.Sleep(time.Duration(rand.Intn(1500)) * time.Millisecond)
 				if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("o%d", rand.Intn(3)))); err != nil {
 					fmt.Fprintf(os.Stderr, "Failed to send message: %v\n", err)
 					return
