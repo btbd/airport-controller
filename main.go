@@ -1040,7 +1040,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 					ToLocation   string `json:"toLocation"`
 					Offer        string `json:"offer"`
 				}
-				if json.Unmarshal(event.Data, &data) == nil {
+				if c != nil && json.Unmarshal(event.Data, &data) == nil {
 					switch data.ActionStatus {
 					case "ActiveActionStatus":
 						supplier := GetSupplier(data.FromLocation)
