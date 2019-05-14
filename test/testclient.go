@@ -18,53 +18,66 @@ import (
 func SimulateClient(wg *sync.WaitGroup, url string, data string) {
 	defer wg.Done()
 
-	time.Sleep(time.Duration(rand.Intn(2500)) * time.Millisecond)
+	var c *websocket.Conn
+	var err error
 
-	c, _, err := websocket.DefaultDialer.Dial(url, nil)
-	if err != nil {
-		log.Fatalf("Error connecting to url: %v\n", err)
-	}
-	defer c.Close()
-
+allofit:
 	for {
-		resp, err := http.Get(data)
+		if c != nil {
+			log.Printf("Lost connection, redialing %q", url)
+			c.Close()
+			c = nil
+		} else {
+			log.Printf("Dialing %q", url)
+		}
+
+		time.Sleep(time.Duration(rand.Intn(2500)) * time.Millisecond)
+
+		c, _, err = websocket.DefaultDialer.Dial(url, nil)
 		if err != nil {
-			log.Fatalf("Failed to get data: %v\n", err)
+			log.Fatalf("Error connecting to url: %v\n", err)
 		}
 
-		body, _ := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		var airport struct {
-			Retailers []map[string]interface{}
-		}
-
-		if err := json.Unmarshal(body, &airport); err != nil {
-			log.Fatalf("Failed to parse data: %v\n", err)
-		}
-
-		if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("r%d", rand.Intn(len(airport.Retailers))))); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to send message: %v\n", err)
-			return
-		}
-
-	loop:
 		for {
-			_, msg, err := c.ReadMessage()
+			resp, err := http.Get(data)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to read message: %v\n", err)
-				return
+				log.Fatalf("Failed to get data: %v\n", err)
 			}
 
-			switch string(msg) {
-			case "o":
-				time.Sleep(time.Duration(rand.Intn(1500)) * time.Millisecond)
-				if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("o%d", rand.Intn(3)))); err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to send message: %v\n", err)
-					return
+			body, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			var airport struct {
+				Retailers []map[string]interface{}
+			}
+
+			if err := json.Unmarshal(body, &airport); err != nil {
+				log.Fatalf("Failed to parse data: %v\n", err)
+			}
+
+			if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("r%d", rand.Intn(len(airport.Retailers))))); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to send message: %v\n", err)
+				continue allofit
+			}
+
+		loop:
+			for {
+				_, msg, err := c.ReadMessage()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to read message: %v\n", err)
+					continue allofit
 				}
-			case "c", "s", "f":
-				break loop
+
+				switch string(msg) {
+				case "o":
+					time.Sleep(time.Duration(rand.Intn(1500)) * time.Millisecond)
+					if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("o%d", rand.Intn(3)))); err != nil {
+						fmt.Fprintf(os.Stderr, "Failed to send message: %v\n", err)
+						continue allofit
+					}
+				case "c", "s", "f":
+					break loop
+				}
 			}
 		}
 	}
@@ -87,6 +100,7 @@ func main() {
 		log.Fatalln("Data url (-d) is required")
 	}
 
+	log.Printf("Starting %d clients", clients)
 	var wg sync.WaitGroup
 	for i := 0; i < clients; i++ {
 		wg.Add(1)
