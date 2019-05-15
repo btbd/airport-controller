@@ -7,7 +7,8 @@ var sprite = {
     shop: document.getElementById("shop"),
     cup: document.getElementById("cup"),
     warehouse: document.getElementById("warehouse"),
-    tower: document.getElementById("tower")
+    tower: document.getElementById("tower"),
+    ce: document.getElementById("ce"),
 };
 
 function Supplier(logo) {
@@ -374,17 +375,18 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
     ctx.drawImage(sprite.tower, canvas.width * 0.05 - w / 2, canvas.height / 2 - h / 1.25, w, h);
 
     ctx.beginPath();
-    ctx.fillStyle = "#FEFE00";
+    ctx.fillStyle = "#462170";
     ctx.ellipse(canvas.width / 2, airport_y, canvas.width * 0.55, canvas.height * 0.075, 0, Math.PI / 2, true);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = "black";
+    ctx.fillStyle = "white";
     ctx.font = "bold " + (canvas.height * 0.05) + "px Arial";
     ctx.textAlign = "center";
     ctx.fillText("HEATHROW", canvas.width / 2, airport_y - (canvas.height * 0.01875));
 
     ctx.fillStyle = "gray";
     ctx.fillRect(0, airport_y, canvas.width, canvas.height);
+    drawImage(sprite.ce, canvas.width / 2, airport_y + canvas.height * 0.1 + (canvas.height - airport_y - canvas.height * 0.1) / 2, canvas.height * 0.25, canvas.height * 0.25, 0);
 
     for (var i = 0, o = canvas.width / (retailers.length + 1), x = o; i < retailers.length; ++i, x += o) {
         var r = retailers[i];
