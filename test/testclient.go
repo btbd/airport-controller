@@ -108,11 +108,6 @@ func main() {
 		log.Fatalln("Data url (-d) is required")
 	}
 
-	go func() {
-		os.Stdin.Read([]byte{'\000'})
-		stop = true
-	}()
-
 	log.Printf("Starting %d clients", clients)
 	var wg sync.WaitGroup
 	for i := 0; i < clients; i++ {
@@ -120,6 +115,9 @@ func main() {
 		go SimulateClient(&wg, url, data)
 	}
 	log.Printf("Press ENTER to stop")
+
+	os.Stdin.Read([]byte{'\000'})
+	stop = true
 
 	wg.Wait()
 }
