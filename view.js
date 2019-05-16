@@ -281,7 +281,12 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
 (function update() {
     var airport_y = (4 / 7) * canvas.height;
 
-    ctx.fillStyle = "lightgray";
+    var grd = ctx.createLinearGradient(0,0,canvas.width,0);
+    grd.addColorStop(0, "#9FDCE7");
+    grd.addColorStop(.2, "#CDE9EA");
+    grd.addColorStop(.8, "#CDE9EA");
+    grd.addColorStop(1, "#9FDCE7");
+    ctx.fillStyle = grd;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = "white";
     ctx.lineWidth = canvas.width * 0.005;
@@ -384,7 +389,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
     ctx.textAlign = "center";
     ctx.fillText("HEATHROW", canvas.width / 2, airport_y - (canvas.height * 0.01875));
 
-    ctx.fillStyle = "gray";
+    ctx.fillStyle = "#F5FAF5";
     ctx.fillRect(0, airport_y, canvas.width, canvas.height);
     drawImage(sprite.ce, canvas.width / 2, airport_y + canvas.height * 0.1 + (canvas.height - airport_y - canvas.height * 0.1) / 2, canvas.height * 0.25, canvas.height * 0.25, 0);
 
