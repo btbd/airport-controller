@@ -281,7 +281,7 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
 (function update() {
     var airport_y = (4 / 7) * canvas.height;
 
-    ctx.fillStyle = "lightgreen";
+    ctx.fillStyle = "lightgray";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = "white";
     ctx.lineWidth = canvas.width * 0.005;
