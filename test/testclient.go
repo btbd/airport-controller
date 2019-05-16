@@ -15,6 +15,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var stop bool = false
+
 func SimulateClient(wg *sync.WaitGroup, url string, data string) {
 	defer wg.Done()
 
@@ -24,9 +26,15 @@ func SimulateClient(wg *sync.WaitGroup, url string, data string) {
 allofit:
 	for {
 		if c != nil {
-			log.Printf("Lost connection, redialing %q", url)
 			c.Close()
-			c = nil
+		}
+
+		if stop {
+			break
+		}
+
+		if c != nil {
+			log.Printf("Lost connection, redialing %q", url)
 		} else {
 			log.Printf("Dialing %q", url)
 		}
@@ -38,7 +46,7 @@ allofit:
 			log.Fatalf("Error connecting to url: %v\n", err)
 		}
 
-		for {
+		for !stop {
 			resp, err := http.Get(data)
 			if err != nil {
 				log.Fatalf("Failed to get data: %v\n", err)
@@ -61,7 +69,7 @@ allofit:
 			}
 
 		loop:
-			for {
+			for !stop {
 				_, msg, err := c.ReadMessage()
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Failed to read message: %v\n", err)
@@ -100,12 +108,18 @@ func main() {
 		log.Fatalln("Data url (-d) is required")
 	}
 
+	go func() {
+		os.Stdin.Read([]byte{'\000'})
+		stop = true
+	}()
+
 	log.Printf("Starting %d clients", clients)
 	var wg sync.WaitGroup
 	for i := 0; i < clients; i++ {
 		wg.Add(1)
 		go SimulateClient(&wg, url, data)
 	}
+	log.Printf("Press ENTER to stop")
 
 	wg.Wait()
 }
