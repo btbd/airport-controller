@@ -44,9 +44,7 @@ function Retailer(logo) {
     this.x = 0;
     this.y = 0;
     this.customers = [];
-    this.small = 10;
-    this.medium = 10;
-    this.large = 10;
+    this.small = this.medium = this.large = 0;
     this.logo = new Image();
     this.logo.src = logo;
 }
@@ -107,6 +105,12 @@ var suppliers = [],
                             if (dr.customers) {
                                 for (var e = 0; e < dr.customers.length; ++e) {
                                     new Customer(r);
+                                }
+                            }
+
+                            if (dr.offers) {
+                                for (var i in dr.offers) {
+                                    r[i] = dr.offers[i];
                                 }
                             }
 
@@ -193,14 +197,8 @@ var suppliers = [],
                                 case "gocarrier":
                                     carriers[d.c].trucks.push(new Truck(suppliers[d.s], retailers[d.r]));
                                     break;
-                                case "small":
-                                    retailers[d.r].small = d.c;
-                                    break;
-                                case "medium":
-                                    retailers[d.r].medium = d.c;
-                                    break;
-                                case "large":
-                                    retailers[d.r].large = d.c;
+                                case "offer":
+                                    retailers[d.r][d.o] = d.c;
                                     break;
                             }
                         }
@@ -278,13 +276,21 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
     ctx.stroke();
 }
 
+function drawCupBar(x, y, c) {
+    if (c > 5) c = 5;
+    ctx.fillStyle = "#E0B000";
+    var w = canvas.height * 0.01 * c;
+    var h = canvas.height * 0.01;
+    ctx.fillRect(x, y - (h / 2), w, h);
+}
+
 (function update() {
     var airport_y = (4 / 7) * canvas.height;
 
     var grd = ctx.createLinearGradient(0,0,canvas.width,0);
     grd.addColorStop(0, "#9FDCE7");
-    grd.addColorStop(.2, "#CDE9EA");
-    grd.addColorStop(.8, "#CDE9EA");
+    grd.addColorStop(0.2, "#CDE9EA");
+    grd.addColorStop(0.8, "#CDE9EA");
     grd.addColorStop(1, "#9FDCE7");
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -399,6 +405,10 @@ function drawBubble(hx, hy, x, y, w, h, radius) {
         r.width = r.height = canvas.height * 0.10;
         r.x = x;
         r.y = airport_y;
+
+        drawCupBar(r.x + r.width / 2.5, r.height * 0.15 + r.y + r.height / 3, r.large);
+        drawCupBar(r.x + r.width / 2.5, r.height * 0.15 + r.y + r.height / 2, r.medium);
+        drawCupBar(r.x + r.width / 2.5, r.height * 0.15 + r.y + r.height - r.height / 3, r.small);
 
         if (r.small == 0) {
             ctx.strokeStyle = "black";

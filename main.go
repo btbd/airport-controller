@@ -285,10 +285,11 @@ func (supplier *Supplier) MarshalJSON() ([]byte, error) {
 }
 
 type Retailer struct {
-	Name      string      `json:"-"`
-	Nickname  string      `json:"name"`
-	Logo      string      `json:"logo"`
-	Customers []*Customer `json:"customers"`
+	Name      string         `json:"-"`
+	Nickname  string         `json:"name"`
+	Logo      string         `json:"logo"`
+	Customers []*Customer    `json:"customers"`
+	Offers    map[string]int `json:"offers"`
 }
 
 func (retailer *Retailer) GetPosition() int {
@@ -973,7 +974,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 					Logo         string `json:"logo"`
 				}
 				if r == nil && json.Unmarshal(event.Data, &data) == nil {
-					r = &Retailer{Name: event.Source, Nickname: data.Organization, Logo: data.Logo}
+					r = &Retailer{Name: event.Source, Nickname: data.Organization, Logo: data.Logo, Offers: map[string]int{}}
 					airport.Retailers = append(airport.Retailers, r)
 					Broadcast(`{"type":"retailer","logo":"` + r.Logo + `"}`)
 					UpdateJobs()
@@ -982,6 +983,22 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 			case "Disconnect":
 				if r != nil {
 					r.Disconnect()
+				}
+			case "Offer.InventoryLevel":
+				var data struct {
+					InventoryLevel int    `json:"inventoryLevel"`
+					Offer          string `json:"offer"`
+				}
+
+				if r != nil && json.Unmarshal(event.Data, &data) == nil {
+					size := strings.ToLower(data.Offer)
+					for _, s := range Sizes {
+						if size == s {
+							r.Offers[size] = data.InventoryLevel
+							Broadcast(fmt.Sprintf(`{"type":"offer","r":%d,"o":"%s","c":%d}`, r.GetPosition(), size, data.InventoryLevel))
+							break
+						}
+					}
 				}
 			}
 		case "Supplier":
