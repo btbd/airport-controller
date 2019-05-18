@@ -18,6 +18,7 @@ html, body {
     border-collapse: collapse;
     width: 100%;
     height: 100%;
+    background-color: #BBE9F9;
 }
 
 #options tr {
@@ -33,9 +34,12 @@ html, body {
 #options button {
     -webkit-appearance: none;
     background-color: lightgray;
-    font-size: 3rem;
+    font-size: 2rem;
+    font-weight: bold;
     box-shadow: 4px 4px;
     width: 90%;
+    height: 4rem;
+    border-radius: 25px;
 }
 
 #options button:focus {
@@ -176,7 +180,7 @@ function Force() {
 }
 
 function AddCaption(text) {
-    options.innerHTML = '<tbody><tr style="height: 10%;"><td>' + text + '</tr></td></tbody>';
+    options.innerHTML = '<tbody><tr style="background-color:lightgreen;height: 10%;font-weight:bold;"><td>' + text + '</tr></td></tbody>';
 }
 
 function AddOption(text) {
