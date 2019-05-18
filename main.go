@@ -1064,7 +1064,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 						supplier := GetSupplier(data.FromLocation)
 						retailer := GetRetailer(data.ToLocation)
 						if supplier != nil && retailer != nil {
-							Broadcast(`{"type":"gocarrier","c":` + strconv.Itoa(c.GetPosition()) + `,"s":` + strconv.Itoa(supplier.GetPosition()) + `,"r":` + strconv.Itoa(retailer.GetPosition()) + `}`)
+							Broadcast(`{"type":"gocarrier","c":` + strconv.Itoa(c.GetPosition()) + `,"s":` + strconv.Itoa(supplier.GetPosition()) + `,"r":` + strconv.Itoa(retailer.GetPosition()) + `,"o":"` + strings.ToLower(data.Offer) + `"}`)
 							go func() {
 								time.Sleep(4000 * time.Millisecond)
 								data.ActionStatus = "ArrivedActionStatus"
@@ -1079,7 +1079,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 						}
 					case "CompletedActionStatus":
 						if retailer := GetRetailer(data.ToLocation); retailer != nil {
-							Broadcast(`{"type":"` + data.Offer + `","r":` + strconv.Itoa(retailer.GetPosition()) + `,"c":1}`)
+							Broadcast(`{"type":"endcarrier","r":` + strconv.Itoa(retailer.GetPosition()) + `,"o":"` + strings.ToLower(data.Offer) + `"}`)
 						}
 					}
 				}

@@ -45,6 +45,7 @@ function Retailer(logo) {
     this.y = 0;
     this.customers = [];
     this.small = this.medium = this.large = 0;
+    this.bsmall = this.bmedium = this.blarge = false;
     this.logo = new Image();
     this.logo.src = logo;
 }
@@ -195,7 +196,11 @@ var suppliers = [],
                                     carriers.splice(d.c, 1);
                                     break;
                                 case "gocarrier":
+                                    retailers[d.r]["b" + d.o] = true;
                                     carriers[d.c].trucks.push(new Truck(suppliers[d.s], retailers[d.r]));
+                                    break;
+                                case "endcarrier":
+                                    retailers[d.r]["b" + d.o] = false;
                                     break;
                                 case "offer":
                                     retailers[d.r][d.o] = d.c;
@@ -410,7 +415,7 @@ function drawCupBar(x, y, c) {
         drawCupBar(r.x + r.width / 2.5, r.height * 0.15 + r.y + r.height / 2, r.medium);
         drawCupBar(r.x + r.width / 2.5, r.height * 0.15 + r.y + r.height - r.height / 3, r.small);
 
-        if (r.small == 0) {
+        if (r.bsmall) {
             ctx.strokeStyle = "black";
             ctx.fillStyle = "white";
             var s = r.width * 0.5;
@@ -420,7 +425,7 @@ function drawCupBar(x, y, c) {
             ctx.drawImage(sprite.cup, cx + cs / 2, r.y - s * 0.8, cs, cs);
         }
 
-        if (r.medium == 0) {
+        if (r.bmedium) {
             ctx.strokeStyle = "black";
             ctx.fillStyle = "white";
             var s = r.width * 0.5;
@@ -430,7 +435,7 @@ function drawCupBar(x, y, c) {
             ctx.drawImage(sprite.cup, cx + s * 0.15, r.y - s - cs / 1.5, cs, cs);
         }
 
-        if (r.large == 0) {
+        if (r.blarge) {
             ctx.strokeStyle = "black";
             ctx.fillStyle = "white";
             var s = r.width * 0.5;
