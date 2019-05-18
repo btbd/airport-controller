@@ -110,8 +110,8 @@ var suppliers = [],
                             }
 
                             if (dr.offers) {
-                                for (var i in dr.offers) {
-                                    r[i] = dr.offers[i];
+                                for (var e in dr.offers) {
+                                    r[e] = dr.offers[e];
                                 }
                             }
 
