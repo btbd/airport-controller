@@ -234,13 +234,13 @@ func (supplier *Supplier) GetPosition() int {
 	return -1
 }
 
-func (supplier *Supplier) Disconnect() {
+func (supplier *Supplier) Disconnect(cause string) {
 	i := supplier.GetPosition()
 	if i != -1 {
 		airport.Suppliers = append(airport.Suppliers[:i], airport.Suppliers[i+1:]...)
 		Broadcast(`{"type":"rmsupplier","s":` + strconv.Itoa(i) + `}`)
 		UpdateJobs()
-		PublishDisconnect(supplier.Name)
+		PublishDisconnect(supplier.Name, cause)
 	}
 }
 
@@ -265,6 +265,7 @@ func EventToMessage(event *CloudEvent) *amqp.Message {
 			"cloudEvents:subject":     event.Subject,
 			"cloudEvents:id":          event.ID,
 			"cloudEvents:time":        event.Time,
+			"cloudEvents:cause":       event.Cause,
 		},
 		Data: [][]byte{event.Data},
 	}
@@ -302,7 +303,7 @@ func (retailer *Retailer) GetPosition() int {
 	return -1
 }
 
-func (retailer *Retailer) Disconnect() {
+func (retailer *Retailer) Disconnect(cause string) {
 	i := retailer.GetPosition()
 	if i != -1 {
 		for _, c := range retailer.Customers {
@@ -311,7 +312,7 @@ func (retailer *Retailer) Disconnect() {
 		airport.Retailers = append(airport.Retailers[:i], airport.Retailers[i+1:]...)
 		Broadcast(`{"type":"rmretailer","r":` + strconv.Itoa(i) + `}`)
 		UpdateJobs()
-		PublishDisconnect(retailer.Name)
+		PublishDisconnect(retailer.Name, cause)
 	}
 }
 
@@ -334,12 +335,12 @@ type Carrier struct {
 	Jobs []*CarrierJob `json:"jobs"`
 }
 
-func (carrier *Carrier) Disconnect() {
+func (carrier *Carrier) Disconnect(cause string) {
 	if i := carrier.GetPosition(); i != -1 {
 		airport.Carriers = append(airport.Carriers[:i], airport.Carriers[i+1:]...)
 		Broadcast(`{"type":"rmcarrier","c":` + strconv.Itoa(i) + `}`)
 		UpdateJobs()
-		PublishDisconnect(carrier.Name)
+		PublishDisconnect(carrier.Name, cause)
 	}
 }
 
@@ -724,12 +725,13 @@ func PublishReset() {
 	}
 }
 
-func PublishDisconnect(name string) {
+func PublishDisconnect(name string, cause string) {
 	fmt.Println("Published timeout disconnect for: " + name)
 	airport.Sender.Send(airport.Context, EventToMessage(&CloudEvent{
 		Type:    "Disconnect",
 		Source:  "Controller",
 		Subject: name,
+		Cause:   cause,
 	}))
 }
 
@@ -850,7 +852,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 					}
 				}
 
-				var disconnect func()
+				var disconnect func(string)
 				switch t.Expect {
 				case EXPECT_PROVIDER:
 					name, ok := data["provider"].(string)
@@ -932,7 +934,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 						Timer: time.AfterFunc(t.Timeout, func() {
 							airport.Mutex.Lock()
 							fmt.Println("Disconnected due to: " + event.ID)
-							disconnect()
+							disconnect(event.ID)
 							if t.Resend {
 								airport.Sender.Send(airport.Context, m)
 							}
@@ -982,7 +984,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 				}
 			case "Disconnect":
 				if r != nil {
-					r.Disconnect()
+					r.Disconnect("")
 				}
 			case "Offer.InventoryLevel":
 				var data struct {
@@ -1023,7 +1025,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 				}
 			case "Disconnect":
 				if s != nil {
-					s.Disconnect()
+					s.Disconnect("")
 				}
 			}
 		case "Carrier":
@@ -1048,7 +1050,7 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 				}
 			case "Disconnect":
 				if c != nil {
-					c.Disconnect()
+					c.Disconnect("")
 				}
 			case "TransferAction.ActionStatus.ActiveActionStatus",
 				"TransferAction.ActionStatus.CompletedActionStatus":
