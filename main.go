@@ -39,7 +39,7 @@ var TimeoutEvents = []TimeoutEvent{
 	{
 		Type:    "Order.OrderStatus.OrderReleased",
 		Source:  "Passenger",
-		Timeout: 20 * time.Second,
+		Timeout: 25 * time.Second,
 		Data: map[string]interface{}{
 			"orderStatus": "OrderReleased",
 		},
@@ -49,7 +49,7 @@ var TimeoutEvents = []TimeoutEvent{
 	{
 		Type:    "Order.OrderStatus.OrderReleased",
 		Source:  "Retailer",
-		Timeout: 20 * time.Second,
+		Timeout: 25 * time.Second,
 		Data: map[string]interface{}{
 			"orderStatus": "OrderReleased",
 		},
@@ -59,7 +59,7 @@ var TimeoutEvents = []TimeoutEvent{
 	{
 		Type:    "TransferAction.ActionStatus.PotentialActionStatus",
 		Source:  "Supplier",
-		Timeout: 20 * time.Second,
+		Timeout: 25 * time.Second,
 		Data: map[string]interface{}{
 			"actionStatus": "PotentialActionStatus",
 		},
@@ -69,7 +69,7 @@ var TimeoutEvents = []TimeoutEvent{
 	{
 		Type:    "TransferAction.ActionStatus.ArrivedActionStatus",
 		Source:  "Controller",
-		Timeout: 20 * time.Second,
+		Timeout: 25 * time.Second,
 		Data: map[string]interface{}{
 			"actionStatus": "ArrivedActionStatus",
 		},
@@ -79,7 +79,7 @@ var TimeoutEvents = []TimeoutEvent{
 	{
 		Type:    "TransferAction.ActionStatus.CompletedActionStatus",
 		Source:  "Carrier",
-		Timeout: 20 * time.Second,
+		Timeout: 25 * time.Second,
 		Data: map[string]interface{}{
 			"actionStatus": "CompletedActionStatus",
 		},
