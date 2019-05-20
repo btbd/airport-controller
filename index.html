@@ -98,35 +98,40 @@ var master  = false;
     };
 })();
 
-function Update() {
-    HttpGet("./data", function(x) {
-        if (Update && x.readyState === 4 && x.status === 200) {
-            var data = JSON.parse(x.responseText);
-            if (data) {
-                var t = setTimeout(Update, 500);
-                if (data.disabled && !master) {
-                    AddCaption("Waiting for the demo to start...");
-                } else if (data.retailers && data.retailers.length > 0) {
-                    AddCaption("Pick a shop");
-                    for (var i = 0; i < data.retailers.length; ++i) {
-                        var r = data.retailers[i];
-                        (function(i, r) {
-                            AddOption(r.name).onmousedown = function() {
-                                clearTimeout(t);
-                                Update = undefined;
-                                ws.send("r" + i);
-                                WaitForOrder(r);
-                            };
-                        })(i, r);
+function Reset() {
+    id = order = "";
+    function Update() {
+        HttpGet("./data", function(x) {
+            if (Update && x.readyState === 4 && x.status === 200) {
+                var data = JSON.parse(x.responseText);
+                if (data) {
+                    var t = setTimeout(Update, 500);
+                    if (data.disabled && !master) {
+                        AddCaption("Waiting for the demo to start...");
+                    } else if (data.retailers && data.retailers.length > 0) {
+                        AddCaption("Pick a shop");
+                        for (var i = 0; i < data.retailers.length; ++i) {
+                            var r = data.retailers[i];
+                            (function(i, r) {
+                                AddOption(r.name).onmousedown = function() {
+                                    clearTimeout(t);
+                                    Update = undefined;
+                                    ws.send("r" + i);
+                                    WaitForOrder(r);
+                                };
+                            })(i, r);
+                        }
+                    } else {
+                        AddCaption("Waiting for a shop to open...");
                     }
-                } else {
-                    AddCaption("Waiting for a shop to open...");
                 }
             }
-        }
-    });
+        });
+    }
+
+    Update();
 }
-Update();
+Reset();
 
 function WaitForOrder(retailer) {
     AddCaption("Waiting your turn for retailer &quot;" + retailer.name + "&quot;");
@@ -160,12 +165,12 @@ function WaitForProcess() {
 
 function Satisfied() {
     AddCaption("Thanks for playing!<br>Enjoy your " + order + " coffee!");
-    AddOption("Go again").onmousedown = location.reload.bind(location);
+    AddOption("Go again").onmousedown = Reset;
 }
 
 function Closed() {
     AddCaption("Your retailer went out of business! :(");
-    AddOption("Go again").onmousedown = location.reload.bind(location);
+    AddOption("Go again").onmousedown = Reset;
 }
 
 function AddJump() {
@@ -176,7 +181,7 @@ function AddJump() {
 
 function Force() {
     AddCaption("You were too slow! :(");
-    AddOption("Go again").onmousedown = location.reload.bind(location);
+    AddOption("Go again").onmousedown = Reset;
 }
 
 function AddCaption(text) {
