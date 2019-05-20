@@ -254,20 +254,26 @@ func EventToMessage(event *CloudEvent) *amqp.Message {
 	if event.Time == "" {
 		event.Time = time.Now().Format(time.RFC3339Nano)
 	}
+
+	apm := map[string]interface{}{
+		"cloudEvents:specversion": event.SpecVersion,
+		"cloudEvents:type":        event.Type,
+		"cloudEvents:source":      event.Source,
+		"cloudEvents:subject":     event.Subject,
+		"cloudEvents:id":          event.ID,
+		"cloudEvents:time":        event.Time,
+	}
+
+	if event.Cause != "" {
+		apm["cloudEvents:cause"] = event.Cause
+	}
+
 	return &amqp.Message{
 		Properties: &amqp.MessageProperties{
 			ContentType: "application/json",
 		},
-		ApplicationProperties: map[string]interface{}{
-			"cloudEvents:specversion": event.SpecVersion,
-			"cloudEvents:type":        event.Type,
-			"cloudEvents:source":      event.Source,
-			"cloudEvents:subject":     event.Subject,
-			"cloudEvents:id":          event.ID,
-			"cloudEvents:time":        event.Time,
-			"cloudEvents:cause":       event.Cause,
-		},
-		Data: [][]byte{event.Data},
+		ApplicationProperties: apm,
+		Data:                  [][]byte{event.Data},
 	}
 }
 
@@ -794,14 +800,15 @@ func Listen(queueURL string) {
 				continue
 			}
 
-			ProcessEvent(event, m)
+			ProcessEvent(*event, *m)
 		}
 	}
 }
 
-func ProcessEvent(event *CloudEvent, m *amqp.Message) {
+func ProcessEvent(event CloudEvent, m amqp.Message) {
 	airport.Mutex.Lock()
-	if event.Source != "Controller" {
+	defer airport.Mutex.Unlock()
+	if event.Source != "Controller" || event.Type == "Disconnect" {
 		if event.Source != "Truck" {
 			data, _ := json.Marshal(event)
 			Broadcast(`{"type":"event","event":` + string(data) + `}`)
@@ -834,6 +841,15 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 		if ate, ok := ates[event.Cause]; ok {
 			ate.Timer.Stop()
 			delete(ates, event.Cause)
+		}
+	}
+
+	ignores := []string{"kn"} // , "MSFT"}
+	if len(source) > 1 {
+		for _, ig := range ignores {
+			if source[1] == ig {
+				return
+			}
 		}
 	}
 
@@ -930,13 +946,13 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 
 				func(t TimeoutEvent) {
 					ate := ActiveTimeoutEvent{
-						Message: m,
+						Message: &m,
 						Timer: time.AfterFunc(t.Timeout, func() {
 							airport.Mutex.Lock()
 							fmt.Println("Disconnected due to: " + event.ID)
 							disconnect(event.ID)
 							if t.Resend {
-								airport.Sender.Send(airport.Context, m)
+								airport.Sender.Send(airport.Context, &m)
 							}
 							delete(ates, event.ID)
 							airport.Mutex.Unlock()
@@ -1088,7 +1104,6 @@ func ProcessEvent(event *CloudEvent, m *amqp.Message) {
 			}
 		}
 	}
-	airport.Mutex.Unlock()
 }
 
 func main() {
