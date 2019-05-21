@@ -29,6 +29,8 @@ var airport struct {
 	Context   context.Context `json:"-"`
 }
 
+var banned = []string{}
+
 var upgrader = websocket.Upgrader{}
 var clients = []chan string{}
 var clients_mu *sync.Mutex = &sync.Mutex{}
@@ -844,9 +846,8 @@ func ProcessEvent(event CloudEvent, m amqp.Message) {
 		}
 	}
 
-	ignores := []string{"kn"} // , "MSFT"}
 	if len(source) > 1 {
-		for _, ig := range ignores {
+		for _, ig := range banned {
 			if source[1] == ig {
 				return
 			}
@@ -1115,6 +1116,22 @@ func main() {
 
 	if addr == "" {
 		log.Fatalln("Missing AMQP URL, use the '-u' flag to specify")
+	}
+
+	// "banned" has a list of participant name, where their name appears
+	// after the role in the System data. E.g.  Supplier.NAME
+	// e.g. this will ban the IBMR participant for all roles:
+	// IBMR
+	buf, _ := ioutil.ReadFile("/banned")
+	if len(buf) > 0 {
+		banned = strings.Split(string(buf), "\n")
+		for i, b := range banned {
+			tmp := strings.TrimSpace(b)
+			if len(tmp) > 0 && tmp[0] != '#' {
+				banned[i] = tmp
+				log.Printf("Banning: %s\n", tmp)
+			}
+		}
 	}
 
 	go Listen(addr)
