@@ -12,4 +12,5 @@ WORKDIR /airport
 COPY --from=0 /server /airport/server
 COPY *html *js /airport/
 COPY images/* /airport/images/
+COPY banned /banned
 CMD /airport/server
